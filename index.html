@@ -42,6 +42,8 @@
   .brand-text p{margin:2px 0 0;font-size:11px;color:var(--ink-soft);letter-spacing:.03em;}
   .header-actions{display:flex;align-items:center;gap:10px;}
   .icon-btn{position:relative;width:42px;height:42px;border-radius:50%;background:var(--white);border:1px solid var(--ivory-deep);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);}
+  .icon-btn.logged-in{color:var(--rose-deep);border-color:var(--rose);}
+  .icon-btn.logged-in::after{content:'';position:absolute;top:2px;right:2px;width:9px;height:9px;border-radius:50%;background:var(--green);border:2px solid var(--white);}
   .icon-btn svg{width:19px;height:19px;stroke:var(--rose-deep);}
   .badge{position:absolute;top:-4px;right:-4px;background:var(--rose-deep);color:#fff;font-size:10px;min-width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0 3px;font-family:'Jost',sans-serif;font-weight:600;}
 
@@ -219,6 +221,9 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="icon-btn" id="headerAccountBtn" onclick="openMyAccountEntry()" aria-label="My Account">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
       <button class="icon-btn" onclick="openSheet('searchSheet')" aria-label="Search">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
@@ -248,7 +253,7 @@
   <p>Near Meraj Masjid Road, Opp. Madina Garments &amp; Hosiery</p>
   <p>Borabanda, Hyderabad – 500018, Telangana, India</p>
   <p>WhatsApp: <a id="footWaLink" href="https://wa.me/919963618877" target="_blank" rel="noopener">+91 99636 18877</a></p>
-  <div class="foot-links"><a href="#" onclick="openTrackSheet();return false;">Track your order</a> &nbsp;·&nbsp; <a href="#" onclick="openAdminLogin();return false;" class="admin-link">Shop owner dashboard</a></div>
+  <div class="foot-links"><a href="#" id="myAccountLink" onclick="openMyAccountEntry();return false;">My Account</a> &nbsp;·&nbsp; <a href="#" onclick="openTrackSheet();return false;">Track your order</a> &nbsp;·&nbsp; <a href="#" onclick="openAdminLogin();return false;" class="admin-link">Shop owner dashboard</a></div>
 </footer>
 
 <div class="fab-stack">
@@ -359,6 +364,26 @@
     <div class="field"><label for="trackPhone">Phone Number</label><input type="tel" id="trackPhone" placeholder="10-digit mobile number"></div>
     <button class="primary-btn" onclick="lookupOrder()">Track Order</button>
     <div id="trackResult" style="margin-top:16px;"></div>
+  </div>
+</div>
+
+<!-- CUSTOMER LOGIN -->
+<div class="overlay" id="customerLoginSheet">
+  <div class="sheet">
+    <div class="sheet-head"><h2>My Account</h2><button class="close-x" onclick="closeSheet('customerLoginSheet')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <p class="empty-note" style="text-align:left;">Enter your name and the phone number you used at checkout to see your order history from any device. No password needed — just re-enter the same phone number to log in again later.</p>
+    <div class="field"><label for="custLoginName">Your Name</label><input type="text" id="custLoginName" placeholder="e.g. Sameer"></div>
+    <div class="field"><label for="custLoginPhone">Phone Number</label><input type="tel" id="custLoginPhone" placeholder="10-digit mobile number"></div>
+    <button class="primary-btn" onclick="submitCustomerLogin()">Login</button>
+  </div>
+</div>
+
+<!-- MY ACCOUNT / ORDER HISTORY -->
+<div class="overlay" id="myAccountSheet">
+  <div class="sheet">
+    <div class="sheet-head"><h2 id="myAccountTitle">My Orders</h2><button class="close-x" onclick="closeSheet('myAccountSheet')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div id="myOrdersList"></div>
+    <button class="secondary-btn" onclick="logoutCustomer()">Log Out</button>
   </div>
 </div>
 
@@ -936,6 +961,90 @@ GRAND TOTAL: ₹${total}`;
       </div>
       <p class="empty-note">Order for ${order.name} · ₹${order.total} · placed ${order.date}</p>`;
   }
+
+  // ---------------- CUSTOMER ACCOUNT (free, no OTP) ----------------
+  function getCustomer(){ return loadJSON('arsheen_customer', null); }
+  function saveCustomer(c){ localStorage.setItem('arsheen_customer', JSON.stringify(c)); }
+  function updateMyAccountLinkLabel(){
+    const c = getCustomer();
+    const link = document.getElementById('myAccountLink');
+    if(link) link.textContent = c ? `My Account (${c.name.split(' ')[0]})` : 'My Account';
+    const headerBtn = document.getElementById('headerAccountBtn');
+    if(headerBtn){
+      headerBtn.setAttribute('aria-label', c ? `My Account (${c.name.split(' ')[0]})` : 'My Account');
+      headerBtn.title = c ? `Logged in as ${c.name.split(' ')[0]}` : 'My Account — Login';
+      headerBtn.classList.toggle('logged-in', !!c);
+    }
+  }
+  function openMyAccountEntry(){
+    const c = getCustomer();
+    if(c){ openMyAccount(); } else { openCustomerLoginSheet(); }
+  }
+  function openCustomerLoginSheet(){
+    document.getElementById('custLoginName').value = '';
+    document.getElementById('custLoginPhone').value = '';
+    openSheet('customerLoginSheet');
+  }
+  function submitCustomerLogin(){
+    const name = document.getElementById('custLoginName').value.trim();
+    const phone = document.getElementById('custLoginPhone').value.trim();
+    if(!name || !phone){ showToast('Enter your name and phone number'); return; }
+    if(phone.replace(/\D/g,'').length < 10){ showToast('Enter a valid 10-digit phone number'); return; }
+    saveCustomer({ name, phone });
+    updateMyAccountLinkLabel();
+    closeSheet('customerLoginSheet');
+    openMyAccount();
+  }
+  function logoutCustomer(){
+    localStorage.removeItem('arsheen_customer');
+    updateMyAccountLinkLabel();
+    closeSheet('myAccountSheet');
+    showToast('Logged out');
+  }
+  async function openMyAccount(){
+    const c = getCustomer();
+    if(!c){ openCustomerLoginSheet(); return; }
+    document.getElementById('myAccountTitle').textContent = `My Orders — ${c.name}`;
+    const wrap = document.getElementById('myOrdersList');
+    wrap.innerHTML = `<p class="empty-note">Loading your orders…</p>`;
+    openSheet('myAccountSheet');
+
+    const phoneLast10 = c.phone.replace(/\D/g,'').slice(-10);
+    let orders = [];
+
+    if(firebaseReady && db){
+      try{
+        const snap = await db.collection('orders').orderBy('createdAt','desc').limit(300).get();
+        orders = snap.docs.map(d => d.data()).filter(o => (o.phone||'').replace(/\D/g,'').endsWith(phoneLast10));
+      }catch(err){ console.error('My Orders cloud fetch failed, using local backup:', err); }
+    }
+    if(orders.length === 0){
+      const log = loadJSON('arsheen_order_log', []);
+      orders = log.filter(o => (o.phone||'').replace(/\D/g,'').endsWith(phoneLast10));
+    }
+
+    if(orders.length === 0){
+      wrap.innerHTML = `<p class="empty-note">No orders found for this phone number yet. Once you place an order, it'll show up here.</p>`;
+      return;
+    }
+    wrap.innerHTML = orders.map(o => {
+      const status = o.status || 'Order Received';
+      const stepIdx = STATUS_STEPS.indexOf(status);
+      return `
+      <div class="order-log">
+        ${o.id ? `<strong>Order ID: ${o.id}</strong><br>` : ''}
+        ${o.deliveryType ? `Delivery: ${o.deliveryType}<br>` : ''}
+        Payment: ${o.payMethod || 'Cash on Delivery'}<br>
+        ${(o.summary||'').replace(/\n/g,'<br>')}<br>
+        <strong>Total: ₹${o.total}</strong><br>
+        <span style="color:var(--ink-soft);">${o.date}</span>
+        <div class="status-track" style="margin-top:10px;">
+          ${STATUS_STEPS.map((s,i)=>`<div class="status-step ${i<=stepIdx?'done':''}"><div class="dot">${i<=stepIdx?'✓':i+1}</div><span class="lbl">${s}</span></div>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   function updateOrderStatus(id, status){
     const log = loadJSON('arsheen_order_log', []);
     const order = log.find(o => o.id === id);
@@ -1290,6 +1399,7 @@ GRAND TOTAL: ₹${total}`;
   renderProducts();
   updateCartBadge();
   applySettingsToLinks();
+  updateMyAccountLinkLabel();
 </script>
 </body>
 </html>
