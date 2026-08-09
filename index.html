@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -281,6 +280,14 @@
     <div class="sheet-head"><h2>Place Order</h2><button class="close-x" onclick="closeSheet('checkoutSheet')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="order-recap" id="orderRecap"></div>
     <div class="field">
+      <label>Delivery Type</label>
+      <div class="pay-choice">
+        <button type="button" class="pay-opt active" id="shipLocalBtn" onclick="setDeliveryType('local')">Local Delivery<br><span style="font-weight:400;">(short distance)</span></button>
+        <button type="button" class="pay-opt" id="shipStandardBtn" onclick="setDeliveryType('standard')">Standard Shipping<br><span style="font-weight:400;">(surface)</span></button>
+      </div>
+    </div>
+    <div class="cart-summary" id="checkoutBreakdown" style="margin-top:0;padding-top:10px;"></div>
+    <div class="field">
       <label>Payment Method</label>
       <div class="pay-choice">
         <button type="button" class="pay-opt active" id="payCodBtn" onclick="setPayMethod('cod')">Cash on Delivery</button>
@@ -298,6 +305,11 @@
       <div class="field"><label for="custPincode">Pincode *</label><input type="text" id="custPincode" name="Pincode" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit PIN code"></div>
       <div class="field"><label for="custNote">Special Instructions (optional)</label><textarea id="custNote" name="Special Instructions" placeholder="Preferred shade, delivery time, etc."></textarea></div>
       <input type="hidden" name="Order Summary">
+      <input type="hidden" name="Subtotal">
+      <input type="hidden" name="Shipping Charge">
+      <input type="hidden" name="Platform Fee">
+      <input type="hidden" name="COD Fee">
+      <input type="hidden" name="Delivery Type" id="deliveryTypeField" value="Local Delivery">
       <input type="hidden" name="Grand Total">
       <input type="hidden" name="Payment Method" id="payMethodField" value="Cash on Delivery">
       <input type="hidden" name="_subject" value="New Order — Arsheen Beauty Care">
@@ -400,6 +412,7 @@
         <div class="field"><label for="prodImgUrl">...or paste an image link (imgbb.com etc.)</label><input type="text" id="prodImgUrl" placeholder="https://..." oninput="handleProdImageUrl(event)"></div>
         <div class="field"><label for="prodName">Product Name *</label><input type="text" id="prodName" placeholder="e.g. Rose Glow Vitamin C Serum"></div>
         <div class="field"><label for="prodPrice">Price (₹) *</label><input type="number" id="prodPrice" min="0" placeholder="e.g. 499"></div>
+        <div class="field"><label for="prodWeight">Weight (grams) — used to calculate shipping</label><input type="number" id="prodWeight" min="1" placeholder="e.g. 250"></div>
         <div class="field"><label>Category *</label><div class="tag-select" id="prodCatChips"></div></div>
         <input type="hidden" id="prodEditId" value="">
         <button class="primary-btn" onclick="saveProduct()">Save Product</button>
@@ -448,6 +461,15 @@
         <button class="primary-btn" onclick="saveSettings()">Save Settings</button>
       </div>
       <div class="admin-card">
+        <h3>Shipping &amp; Fees</h3>
+        <div class="field"><label for="setPlatformFee">Platform Fee — flat, every order (₹)</label><input type="number" id="setPlatformFee" min="0" placeholder="10"></div>
+        <div class="field"><label for="setCodFee">Cash on Delivery Fee — extra on COD orders (₹)</label><input type="number" id="setCodFee" min="0" placeholder="10"></div>
+        <div class="field"><label for="setLocalRate">Local Delivery Rate — per 500g (₹)</label><input type="number" id="setLocalRate" min="0" placeholder="e.g. 30 to 90"></div>
+        <div class="field"><label for="setStandardRate">Standard Surface Shipping Rate — per kg (₹)</label><input type="number" id="setStandardRate" min="0" placeholder="e.g. 60 to 80"></div>
+        <p class="hint">Shipping is calculated by each product's weight (set per product in the Products tab) rounded up to the nearest slab, then multiplied by the rate above. Customers see the exact breakdown right before placing their order.</p>
+        <button class="primary-btn" onclick="saveShippingSettings()">Save Shipping Settings</button>
+      </div>
+      <div class="admin-card">
         <h3>Dashboard Passcode</h3>
         <div class="field"><label for="setPasscode">Change Owner Passcode</label><input type="text" id="setPasscode" placeholder="New passcode"></div>
         <button class="primary-btn" onclick="savePasscode()">Update Passcode</button>
@@ -484,7 +506,11 @@
     whatsapp: "919963618877",
     upiId: "",
     formspree: "https://formspree.io/f/YOUR_FORM_ID",
-    passcode: "swing"
+    passcode: "swing",
+    platformFee: 10,
+    codFee: 10,
+    localRatePer500g: 50,
+    standardRatePerKg: 70
   };
 
   const DEFAULT_CATEGORIES = ["Skin Care","Cosmetics","Perfumes","Handbags","Jewellery","Hair Tools"];
@@ -499,22 +525,22 @@
   };
 
   const DEFAULT_PRODUCTS = [
-    { id:1,  name:"Rose Glow Vitamin C Serum", price:499, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum" },
-    { id:2,  name:"Ivory Matte Compact Powder", price:349, category:"Cosmetics", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact" },
-    { id:3,  name:"Blush Petal Lipstick Duo", price:599, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick" },
-    { id:4,  name:"Arsheen Signature Eau de Parfum", price:1299, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume" },
-    { id:5,  name:"Quilted Rose Sling Handbag", price:1899, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag" },
-    { id:6,  name:"Ivory Tote Handbag", price:1599, category:"Handbags", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote" },
-    { id:7,  name:"1gm Gold-Polish Kundan Necklace Set", price:899, category:"Jewellery", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace" },
-    { id:8,  name:"1gm Gold-Polish Jhumka Earrings", price:449, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka" },
-    { id:9,  name:"Almond & Honey Body Lotion", price:299, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion" },
-    { id:10, name:"Rose Water Face Toner", price:199, category:"Skin Care", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner" },
-    { id:11, name:"Ceramic Hair Straightener", price:1099, category:"Hair Tools", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener" },
-    { id:12, name:"Professional Hair Dryer 1800W", price:1299, category:"Hair Tools", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer" },
-    { id:13, name:"Kajal & Eyeliner Combo", price:249, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal" },
-    { id:14, name:"Mini Perfume Gift Set (3x20ml)", price:799, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set" },
-    { id:15, name:"Clutch Purse — Rose Gold", price:999, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch" },
-    { id:16, name:"1gm Gold-Polish Bangles Set (4pc)", price:749, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles" },
+    { id:1,  name:"Rose Glow Vitamin C Serum", price:499, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum", weight:150 },
+    { id:2,  name:"Ivory Matte Compact Powder", price:349, category:"Cosmetics", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact", weight:120 },
+    { id:3,  name:"Blush Petal Lipstick Duo", price:599, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick", weight:100 },
+    { id:4,  name:"Arsheen Signature Eau de Parfum", price:1299, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume", weight:250 },
+    { id:5,  name:"Quilted Rose Sling Handbag", price:1899, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag", weight:600 },
+    { id:6,  name:"Ivory Tote Handbag", price:1599, category:"Handbags", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote", weight:650 },
+    { id:7,  name:"1gm Gold-Polish Kundan Necklace Set", price:899, category:"Jewellery", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace", weight:80 },
+    { id:8,  name:"1gm Gold-Polish Jhumka Earrings", price:449, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka", weight:50 },
+    { id:9,  name:"Almond & Honey Body Lotion", price:299, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion", weight:200 },
+    { id:10, name:"Rose Water Face Toner", price:199, category:"Skin Care", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner", weight:180 },
+    { id:11, name:"Ceramic Hair Straightener", price:1099, category:"Hair Tools", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener", weight:500 },
+    { id:12, name:"Professional Hair Dryer 1800W", price:1299, category:"Hair Tools", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer", weight:700 },
+    { id:13, name:"Kajal & Eyeliner Combo", price:249, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal", weight:60 },
+    { id:14, name:"Mini Perfume Gift Set (3x20ml)", price:799, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set", weight:200 },
+    { id:15, name:"Clutch Purse — Rose Gold", price:999, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch", weight:350 },
+    { id:16, name:"1gm Gold-Polish Bangles Set (4pc)", price:749, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles", weight:70 },
   ];
 
   // ---------------- PERSISTED STATE ----------------
@@ -544,6 +570,30 @@
       const p = PRODUCTS.find(p=>p.id==id);
       return sum + (p ? p.price*qty : 0);
     },0);
+  }
+  function cartWeightGrams(){
+    return Object.entries(cart).reduce((sum,[id,qty])=>{
+      const p = PRODUCTS.find(p=>p.id==id);
+      return sum + (p ? (p.weight||250)*qty : 0);
+    },0);
+  }
+  // deliveryType: 'local' (short distance, priced per 500g) or 'standard' (surface shipping, priced per kg)
+  function calcShipping(deliveryType, subtotal){
+    const grams = cartWeightGrams() || 250;
+    if(deliveryType === 'standard'){
+      const kgSlabs = Math.max(1, Math.ceil(grams/1000));
+      return kgSlabs * (SETTINGS.standardRatePerKg||0);
+    }
+    const slabs500 = Math.max(1, Math.ceil(grams/500));
+    return slabs500 * (SETTINGS.localRatePer500g||0);
+  }
+  function calcOrderTotals(deliveryType, payMethod){
+    const subtotal = cartTotal();
+    const shipping = calcShipping(deliveryType, subtotal);
+    const platformFee = SETTINGS.platformFee||0;
+    const codFee = payMethod==='cod' ? (SETTINGS.codFee||0) : 0;
+    const grandTotal = subtotal + shipping + platformFee + codFee;
+    return { subtotal, shipping, platformFee, codFee, grandTotal };
   }
   function applySettingsToLinks(){
     const waNum = SETTINGS.whatsapp || DEFAULT_SETTINGS.whatsapp;
@@ -657,7 +707,8 @@
     sumWrap.innerHTML = `
       <div class="cart-summary">
         <div class="sum-row"><span>Items (${cartCount()})</span><span>₹${total}</span></div>
-        <div class="sum-row total"><span>Grand Total</span><span>₹${total}</span></div>
+        <div class="sum-row total"><span>Subtotal</span><span>₹${total}</span></div>
+        <p class="hint" style="text-align:center;">Shipping &amp; fees are calculated on the next step.</p>
       </div>
       <button class="primary-btn" onclick="goToCheckout()">Place Order</button>`;
   }
@@ -669,21 +720,49 @@
       return p ? `${p.name} × ${qty} = ₹${p.price*qty}` : '';
     }).filter(Boolean).join('\n');
   }
+  let selectedDeliveryType = "local";
   function setPayMethod(method){
     selectedPayMethod = method;
     document.getElementById('payCodBtn').classList.toggle('active', method==='cod');
     document.getElementById('payUpiBtn').classList.toggle('active', method==='upi');
     document.getElementById('payMethodField').value = method==='upi' ? 'Pay Online (UPI)' : 'Cash on Delivery';
     document.getElementById('upiHint').style.display = method==='upi' ? 'block' : 'none';
+    renderCheckoutBreakdown();
+  }
+  function setDeliveryType(type){
+    selectedDeliveryType = type;
+    document.getElementById('shipLocalBtn').classList.toggle('active', type==='local');
+    document.getElementById('shipStandardBtn').classList.toggle('active', type==='standard');
+    document.getElementById('deliveryTypeField').value = type==='standard' ? 'Standard Surface Shipping' : 'Local Delivery';
+    renderCheckoutBreakdown();
+  }
+  function renderCheckoutBreakdown(){
+    const t = calcOrderTotals(selectedDeliveryType, selectedPayMethod);
+    const wrap = document.getElementById('checkoutBreakdown');
+    wrap.innerHTML = `
+      <div class="sum-row"><span>Subtotal</span><span>₹${t.subtotal}</span></div>
+      <div class="sum-row"><span>Shipping</span><span>${t.shipping===0 ? 'FREE' : '₹'+t.shipping}</span></div>
+      <div class="sum-row"><span>Platform Fee</span><span>₹${t.platformFee}</span></div>
+      ${t.codFee>0 ? `<div class="sum-row"><span>COD Fee</span><span>₹${t.codFee}</span></div>` : ''}
+      <div class="sum-row total"><span>Grand Total</span><span>₹${t.grandTotal}</span></div>`;
+    document.querySelector('#orderForm [name="Subtotal"]').value = "₹" + t.subtotal;
+    document.querySelector('#orderForm [name="Shipping Charge"]').value = t.shipping===0 ? 'FREE' : ("₹" + t.shipping);
+    document.querySelector('#orderForm [name="Platform Fee"]').value = "₹" + t.platformFee;
+    document.querySelector('#orderForm [name="COD Fee"]').value = t.codFee>0 ? ("₹" + t.codFee) : '—';
+    document.querySelector('#orderForm [name="Grand Total"]').value = "₹" + t.grandTotal;
+    return t;
   }
   function goToCheckout(){
     if(cartCount()===0) return;
     const summary = buildOrderSummary();
-    const total = cartTotal();
-    document.getElementById('orderRecap').innerHTML = `<strong>Order Summary</strong><br>${summary.replace(/\n/g,'<br>')}<br><br><strong>Grand Total: ₹${total}</strong>`;
+    document.getElementById('orderRecap').innerHTML = `<strong>Order Summary</strong><br>${summary.replace(/\n/g,'<br>')}`;
     document.querySelector('#orderForm [name="Order Summary"]').value = summary;
-    document.querySelector('#orderForm [name="Grand Total"]').value = "₹" + total;
+    selectedDeliveryType = "local";
+    document.getElementById('shipLocalBtn').classList.add('active');
+    document.getElementById('shipStandardBtn').classList.remove('active');
+    document.getElementById('deliveryTypeField').value = 'Local Delivery';
     setPayMethod('cod');
+    renderCheckoutBreakdown();
     closeSheet('cartSheet');
     openSheet('checkoutSheet');
   }
@@ -695,7 +774,8 @@
     const form = e.target;
     const formData = new FormData(form);
     const summary = buildOrderSummary();
-    const total = cartTotal();
+    const t = calcOrderTotals(selectedDeliveryType, selectedPayMethod);
+    const total = t.grandTotal;
     const fullAddress = [
       formData.get('Address Line'),
       formData.get('Landmark') ? `Landmark: ${formData.get('Landmark')}` : '',
@@ -711,10 +791,15 @@ Customer: ${formData.get('Customer Name')}
 Phone: ${formData.get('Phone Number')}
 Address: ${fullAddress}
 Instructions: ${formData.get('Special Instructions') || '—'}
+Delivery Type: ${formData.get('Delivery Type')}
 Payment Method: ${formData.get('Payment Method')}
 
 ITEMS:
 ${summary}
+
+Subtotal: ₹${t.subtotal}
+Shipping: ${t.shipping===0 ? 'FREE' : '₹'+t.shipping}
+Platform Fee: ₹${t.platformFee}${t.codFee>0 ? `\nCOD Fee: ₹${t.codFee}` : ''}
 
 GRAND TOTAL: ₹${total}`;
     formData.set('message', readableBody);
@@ -723,7 +808,9 @@ GRAND TOTAL: ₹${total}`;
     saveLocalOrderBackup({
       id: orderId, name: formData.get('Customer Name'), phone: formData.get('Phone Number'),
       address: fullAddress, note: formData.get('Special Instructions'),
-      payMethod: formData.get('Payment Method'), summary, total, date: new Date().toLocaleString(),
+      payMethod: formData.get('Payment Method'), deliveryType: formData.get('Delivery Type'),
+      subtotal: t.subtotal, shipping: t.shipping, platformFee: t.platformFee, codFee: t.codFee,
+      summary, total, date: new Date().toLocaleString(),
       status: 'Order Received'
     });
 
@@ -743,7 +830,7 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('confirmOrderId').textContent = orderId;
 
     const waNum = SETTINGS.whatsapp || DEFAULT_SETTINGS.whatsapp;
-    const waMsg = encodeURIComponent(`Hi Arsheen Beauty Care, I just placed an order (Order ID: ${orderId}), please confirm:\n\n${summary}\n\nTotal: ₹${total}\nPayment: ${formData.get('Payment Method')}`);
+    const waMsg = encodeURIComponent(`Hi Arsheen Beauty Care, I just placed an order (Order ID: ${orderId}), please confirm:\n\n${summary}\n\nSubtotal: ₹${t.subtotal}\nShipping (${formData.get('Delivery Type')}): ${t.shipping===0?'FREE':'₹'+t.shipping}\nPlatform Fee: ₹${t.platformFee}${t.codFee>0?`\nCOD Fee: ₹${t.codFee}`:''}\n\nGrand Total: ₹${total}\nPayment: ${formData.get('Payment Method')}`);
     document.getElementById('waConfirmLink').href = `https://wa.me/${waNum}?text=${waMsg}`;
 
     const upiWrap = document.getElementById('upiPayWrap');
@@ -879,6 +966,7 @@ GRAND TOTAL: ₹${total}`;
   function saveProduct(){
     const name = document.getElementById('prodName').value.trim();
     const price = parseFloat(document.getElementById('prodPrice').value);
+    const weight = parseFloat(document.getElementById('prodWeight').value) || 250;
     const editId = document.getElementById('prodEditId').value;
     if(!name){ showToast("Enter a product name"); return; }
     if(!price || price<=0){ showToast("Enter a valid price"); return; }
@@ -887,11 +975,11 @@ GRAND TOTAL: ₹${total}`;
 
     if(editId){
       const p = PRODUCTS.find(p=>p.id==editId);
-      if(p){ p.name=name; p.price=price; p.category=selectedProdCategory; p.img=img; }
+      if(p){ p.name=name; p.price=price; p.category=selectedProdCategory; p.img=img; p.weight=weight; }
       showToast("Product updated");
     } else {
       const newId = PRODUCTS.length ? Math.max(...PRODUCTS.map(p=>p.id))+1 : 1;
-      PRODUCTS.push({ id:newId, name, price, category:selectedProdCategory, img });
+      PRODUCTS.push({ id:newId, name, price, category:selectedProdCategory, img, weight });
       showToast("Product added");
     }
     persistProducts();
@@ -906,6 +994,7 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('prodEditId').value = p.id;
     document.getElementById('prodName').value = p.name;
     document.getElementById('prodPrice').value = p.price;
+    document.getElementById('prodWeight').value = p.weight || 250;
     selectedProdCategory = p.category;
     renderProductCategoryChips();
     pendingImageData = p.img;
@@ -930,6 +1019,7 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('prodEditId').value = '';
     document.getElementById('prodName').value = '';
     document.getElementById('prodPrice').value = '';
+    document.getElementById('prodWeight').value = '';
     document.getElementById('prodImgUrl').value = '';
     document.getElementById('prodImgFile').value = '';
     document.getElementById('prodImgPreviewImg').style.display = 'none';
@@ -1022,8 +1112,10 @@ GRAND TOTAL: ₹${total}`;
         <strong>${o.name}</strong> — ${o.phone}<br>
         ${o.address}<br>
         ${o.note ? `Note: ${o.note}<br>` : ''}
+        ${o.deliveryType ? `Delivery: ${o.deliveryType}<br>` : ''}
         Payment: ${o.payMethod || 'Cash on Delivery'}<br>
         ${o.summary.replace(/\n/g,'<br>')}<br>
+        ${o.subtotal!==undefined ? `Subtotal: ₹${o.subtotal} · Shipping: ${o.shipping===0?'FREE':'₹'+o.shipping} · Platform Fee: ₹${o.platformFee}${o.codFee>0?` · COD Fee: ₹${o.codFee}`:''}<br>` : ''}
         <strong>Total: ₹${o.total}</strong><br>
         <span style="color:var(--ink-soft);">${o.date}</span>
         ${o.id ? `<br><label style="font-size:11.5px;color:var(--ink-soft);">Status:
@@ -1044,6 +1136,18 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('setWhatsapp').value = SETTINGS.whatsapp || '';
     document.getElementById('setUpi').value = SETTINGS.upiId || '';
     document.getElementById('setFormspree').value = SETTINGS.formspree || '';
+    document.getElementById('setPlatformFee').value = SETTINGS.platformFee ?? DEFAULT_SETTINGS.platformFee;
+    document.getElementById('setCodFee').value = SETTINGS.codFee ?? DEFAULT_SETTINGS.codFee;
+    document.getElementById('setLocalRate').value = SETTINGS.localRatePer500g ?? DEFAULT_SETTINGS.localRatePer500g;
+    document.getElementById('setStandardRate').value = SETTINGS.standardRatePerKg ?? DEFAULT_SETTINGS.standardRatePerKg;
+  }
+  function saveShippingSettings(){
+    SETTINGS.platformFee = parseFloat(document.getElementById('setPlatformFee').value) || 0;
+    SETTINGS.codFee = parseFloat(document.getElementById('setCodFee').value) || 0;
+    SETTINGS.localRatePer500g = parseFloat(document.getElementById('setLocalRate').value) || 0;
+    SETTINGS.standardRatePerKg = parseFloat(document.getElementById('setStandardRate').value) || 0;
+    persistSettings();
+    showToast("Shipping settings saved");
   }
   function saveSettings(){
     SETTINGS.whatsapp = document.getElementById('setWhatsapp').value.trim() || DEFAULT_SETTINGS.whatsapp;
