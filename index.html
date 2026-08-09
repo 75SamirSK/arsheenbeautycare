@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -392,14 +393,14 @@
       <div class="stat-row">
         <div class="stat-box"><div class="num" id="statProducts">0</div><div class="lbl">Products</div></div>
         <div class="stat-box"><div class="num" id="statCategories">0</div><div class="lbl">Categories</div></div>
-        <div class="stat-box"><div class="num" id="statOrders">0</div><div class="lbl">Local Orders</div></div>
+        <div class="stat-box"><div class="num" id="statOrders">0</div><div class="lbl">Live Orders</div></div>
       </div>
       <div class="admin-card">
         <h3>Where your real orders show up</h3>
-        <p class="hint">This site has no server, so it can't host a live "online orders" database by itself. Two real, working sources instead:<br><br>
-        <strong>1. Email (Formspree):</strong> every order submitted is emailed to the Gmail you connect in Settings → Formspree Endpoint. Check your Gmail inbox, or log into formspree.io to see every submission from any device.<br><br>
-        <strong>2. WhatsApp:</strong> customers also get a "Message us on WhatsApp" button with the full order pre-filled, so it lands directly in your WhatsApp too.<br><br>
-        The "Orders" tab here only shows a backup copy saved on <em>this browser/device</em> — handy if you're on the same phone/laptop customers ordered from, but it won't show orders placed on other devices.</p>
+        <p class="hint"><strong>1. Orders tab (live):</strong> every order placed on any customer's phone or computer syncs here in real time via a cloud database — no matter which device it was placed on. Update order status here and customers can track it.<br><br>
+        <strong>2. Email (Formspree):</strong> every order is also emailed to the Gmail you connect in Settings → Formspree Endpoint, as a backup.<br><br>
+        <strong>3. WhatsApp:</strong> customers also get a "Message us on WhatsApp" button with the full order pre-filled.<br><br>
+        If the cloud connection is ever unavailable, the Orders tab automatically falls back to showing a local backup copy saved on this device only.</p>
       </div>
     </div>
 
@@ -443,9 +444,9 @@
     <!-- ORDERS -->
     <div class="admin-pane" id="tab-orders">
       <div class="admin-card">
-        <h3>Local Orders (this device)</h3>
+        <h3>Orders (live, all devices)</h3>
         <div id="adminOrderLog"></div>
-        <button class="secondary-btn" onclick="clearOrderLog()">Clear This List</button>
+        <button class="secondary-btn" onclick="clearOrderLog()">Clear Local Backup Only</button>
       </div>
     </div>
 
@@ -484,7 +485,35 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
+/* =======================================================================
+   FIREBASE — live cross-device order syncing (Firestore)
+   ------------------------------------------------------------------------
+   Orders placed on ANY customer device are written here, and the admin
+   dashboard listens to this collection live — so orders show up on the
+   owner's device instantly, no matter where the order was placed.
+   ======================================================================= */
+  const firebaseConfig = {
+    apiKey: "AIzaSyCZfDc2ACBbnqylGm0BvGOBhqPNE6mawf0",
+    authDomain: "arsheen-1dc9c.firebaseapp.com",
+    projectId: "arsheen-1dc9c",
+    storageBucket: "arsheen-1dc9c.firebasestorage.app",
+    messagingSenderId: "356467986022",
+    appId: "1:356467986022:web:1bd62112566745f6eca7a7",
+    measurementId: "G-1RD0QJH82L"
+  };
+  let db = null;
+  let firebaseReady = false;
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    firebaseReady = true;
+  }catch(e){
+    console.error('Firebase failed to initialize — falling back to local-only order storage.', e);
+  }
+
 /* =======================================================================
    ARSHEEN BEAUTY CARE — SINGLE FILE STORE + OWNER DASHBOARD
    ------------------------------------------------------------------------
@@ -851,6 +880,15 @@ GRAND TOTAL: ₹${total}`;
     const log = loadJSON('arsheen_order_log', []);
     log.unshift(order);
     localStorage.setItem('arsheen_order_log', JSON.stringify(log.slice(0,80)));
+
+    // Live cloud copy — this is what makes orders show up on the owner's
+    // dashboard regardless of which device the customer ordered from.
+    if(firebaseReady && db){
+      db.collection('orders').doc(order.id).set({
+        ...order,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(err => console.error('Firestore order save failed (local/email/WhatsApp backups still work):', err));
+    }
   }
   function generateOrderId(){
     return 'AB' + Date.now().toString(36).toUpperCase().slice(-6);
@@ -864,15 +902,30 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('trackResult').innerHTML = '';
     openSheet('trackSheet');
   }
-  function lookupOrder(){
+  async function lookupOrder(){
     const id = document.getElementById('trackOrderId').value.trim().toUpperCase();
     const phone = document.getElementById('trackPhone').value.trim();
     const resultWrap = document.getElementById('trackResult');
     if(!id || !phone){ resultWrap.innerHTML = `<p class="empty-note">Enter both Order ID and phone number.</p>`; return; }
-    const log = loadJSON('arsheen_order_log', []);
-    const order = log.find(o => (o.id||'').toUpperCase() === id && (o.phone||'').replace(/\D/g,'').endsWith(phone.replace(/\D/g,'').slice(-10)));
+    const phoneLast10 = phone.replace(/\D/g,'').slice(-10);
+    let order = null;
+
+    if(firebaseReady && db){
+      resultWrap.innerHTML = `<p class="empty-note">Looking up your order…</p>`;
+      try{
+        const doc = await db.collection('orders').doc(id).get();
+        if(doc.exists){
+          const data = doc.data();
+          if((data.phone||'').replace(/\D/g,'').endsWith(phoneLast10)) order = data;
+        }
+      }catch(err){ console.error('Cloud order lookup failed, trying local backup:', err); }
+    }
     if(!order){
-      resultWrap.innerHTML = `<p class="empty-note">No matching order found on this device. Orders can only be tracked from the same phone/browser they were placed on. If you're checking from a different device, please message us on WhatsApp with your Order ID instead.</p>`;
+      const log = loadJSON('arsheen_order_log', []);
+      order = log.find(o => (o.id||'').toUpperCase() === id && (o.phone||'').replace(/\D/g,'').endsWith(phoneLast10));
+    }
+    if(!order){
+      resultWrap.innerHTML = `<p class="empty-note">No matching order found. Double-check your Order ID and phone number, or message us on WhatsApp with your Order ID for help.</p>`;
       return;
     }
     const status = order.status || 'Order Received';
@@ -886,7 +939,14 @@ GRAND TOTAL: ₹${total}`;
   function updateOrderStatus(id, status){
     const log = loadJSON('arsheen_order_log', []);
     const order = log.find(o => o.id === id);
-    if(order){ order.status = status; localStorage.setItem('arsheen_order_log', JSON.stringify(log)); showToast('Order status updated'); }
+    if(order){ order.status = status; localStorage.setItem('arsheen_order_log', JSON.stringify(log)); }
+    if(firebaseReady && db){
+      db.collection('orders').doc(id).update({ status })
+        .then(()=> showToast('Order status updated'))
+        .catch(err => { console.error('Cloud status update failed:', err); showToast('Status update failed — check connection'); });
+    } else if(order){
+      showToast('Order status updated');
+    }
   }
 
   // ---------------- ADMIN LOGIN ----------------
@@ -911,12 +971,13 @@ GRAND TOTAL: ₹${total}`;
     renderProductCategoryChips();
     renderAdminProductList();
     renderCategoryList();
-    renderAdminOrderLog();
+    startLiveOrdersListener();
     renderOverviewStats();
   }
   function closeAdminDashboard(){
     document.getElementById('adminDashboard').classList.remove('open');
     document.body.style.overflow = '';
+    if(ordersUnsubscribe){ ordersUnsubscribe(); ordersUnsubscribe = null; }
   }
   function switchAdminTab(tab){
     document.querySelectorAll('.admin-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
@@ -926,7 +987,7 @@ GRAND TOTAL: ₹${total}`;
   function renderOverviewStats(){
     document.getElementById('statProducts').textContent = PRODUCTS.length;
     document.getElementById('statCategories').textContent = CATEGORIES.length;
-    document.getElementById('statOrders').textContent = loadJSON('arsheen_order_log', []).length;
+    document.getElementById('statOrders').textContent = firebaseReady ? liveOrders.length : loadJSON('arsheen_order_log', []).length;
   }
 
   // ---------------- ADMIN: PRODUCTS ----------------
@@ -1102,10 +1163,35 @@ GRAND TOTAL: ₹${total}`;
   }
 
   // ---------------- ADMIN: ORDERS ----------------
-  function renderAdminOrderLog(){
-    const log = loadJSON('arsheen_order_log', []);
+  let liveOrders = [];
+  let ordersUnsubscribe = null;
+  function startLiveOrdersListener(){
+    if(!firebaseReady || !db){
+      // No cloud connection — fall back to this device's local backup only.
+      renderAdminOrderLog(loadJSON('arsheen_order_log', []), false);
+      return;
+    }
+    if(ordersUnsubscribe) return; // already listening
     const wrap = document.getElementById('adminOrderLog');
-    if(log.length===0){ wrap.innerHTML = `<p class="empty-note">No local orders yet on this device.</p>`; return; }
+    if(wrap) wrap.innerHTML = `<p class="empty-note">Connecting to live orders…</p>`;
+    ordersUnsubscribe = db.collection('orders').orderBy('createdAt','desc').limit(200)
+      .onSnapshot(snap => {
+        liveOrders = snap.docs.map(d => d.data());
+        renderAdminOrderLog(liveOrders, true);
+        renderOverviewStats();
+      }, err => {
+        console.error('Live orders listener failed — showing local backup instead.', err);
+        renderAdminOrderLog(loadJSON('arsheen_order_log', []), false);
+      });
+  }
+  function renderAdminOrderLog(log, isLive){
+    log = log || liveOrders;
+    const wrap = document.getElementById('adminOrderLog');
+    if(!wrap) return;
+    if(log.length===0){
+      wrap.innerHTML = `<p class="empty-note">No orders yet${isLive===false ? ' on this device' : ''}.</p>`;
+      return;
+    }
     wrap.innerHTML = log.map(o => `
       <div class="order-log">
         ${o.id ? `<strong>Order ID: ${o.id}</strong><br>` : ''}
@@ -1125,10 +1211,9 @@ GRAND TOTAL: ₹${total}`;
       </div>`).join('');
   }
   function clearOrderLog(){
-    if(!confirm("Clear the local order backup on this device? (Emailed/WhatsApp orders are unaffected.)")) return;
+    if(!confirm("This only clears the offline backup copy stored on this device. It does NOT delete your live cloud orders, emails, or WhatsApp messages. Continue?")) return;
     localStorage.removeItem('arsheen_order_log');
-    renderAdminOrderLog();
-    renderOverviewStats();
+    showToast('Local backup cleared (live orders unaffected)');
   }
 
   // ---------------- ADMIN: SETTINGS ----------------
