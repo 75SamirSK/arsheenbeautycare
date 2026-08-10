@@ -1087,13 +1087,24 @@ GRAND TOTAL: ₹${total}`;
     }).join('');
   }
 
-  function updateOrderStatus(id, status){
+  function updateOrderStatus(id, status, phone, name){
     const log = loadJSON('arsheen_order_log', []);
     const order = log.find(o => o.id === id);
     if(order){ order.status = status; localStorage.setItem('arsheen_order_log', JSON.stringify(log)); }
+
+    // Cancelling from the admin side — open WhatsApp pre-filled to notify the customer.
+    // Opened synchronously (before the async Firestore call) so browsers don't block the popup.
+    if(status === 'Cancelled'){
+      const custPhone = (phone||'').replace(/\D/g,'').slice(-10);
+      if(custPhone){
+        const msg = `Hi ${name||'there'}, this is Arsheen Beauty Care. Your order (ID: ${id}) has been cancelled. If you have any questions or this was a mistake, please reply here and we'll help right away.`;
+        window.open(`https://wa.me/91${custPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+      }
+    }
+
     if(firebaseReady && db){
       db.collection('orders').doc(id).update({ status })
-        .then(()=> showToast('Order status updated'))
+        .then(()=> showToast(status === 'Cancelled' ? 'Order cancelled — WhatsApp opened to notify customer' : 'Order status updated'))
         .catch(err => { console.error('Cloud status update failed:', err); showToast('Status update failed — check connection'); });
     } else if(order){
       showToast('Order status updated');
@@ -1349,6 +1360,7 @@ GRAND TOTAL: ₹${total}`;
       return `
       <div class="order-log" style="${isCancelled ? 'border:1.5px solid #A23B3B;background:#FBEAEA;' : ''}">
         ${isCancelled ? `<div style="color:#A23B3B;font-weight:700;margin-bottom:6px;">❌ ORDER CANCELLED${o.cancelledBy==='customer' ? ' by customer' : ''}</div>` : ''}
+        ${isCancelled ? `<a class="secondary-btn" style="display:inline-block;text-decoration:none;border-color:#25D366;color:#128C4A;margin-bottom:8px;" target="_blank" rel="noopener" href="https://wa.me/91${(o.phone||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Hi ${o.name||'there'}, this is Arsheen Beauty Care. Your order (ID: ${o.id}) has been cancelled. If you have any questions or this was a mistake, please reply here and we'll help right away.`)}">Notify Customer via WhatsApp</a>` : ''}
         ${o.id ? `<strong>Order ID: ${o.id}</strong><br>` : ''}
         <strong>${o.name}</strong> — ${o.phone}<br>
         ${o.address}<br>
@@ -1360,7 +1372,7 @@ GRAND TOTAL: ₹${total}`;
         <strong>Total: ₹${o.total}</strong><br>
         <span style="color:var(--ink-soft);">${o.date}</span>
         ${o.id ? `<br><label style="font-size:11.5px;color:var(--ink-soft);">Status:
-          <select class="order-status-select" onchange="updateOrderStatus('${o.id}', this.value)">
+          <select class="order-status-select" onchange="updateOrderStatus('${o.id}', this.value, '${(o.phone||'').replace(/'/g,"\\'")}', '${(o.name||'').replace(/'/g,"\\'")}')">
             ${ADMIN_STATUS_OPTIONS.map(s=>`<option value="${s}" ${(o.status||'Order Received')===s?'selected':''}>${s}</option>`).join('')}
           </select></label>` : ''}
       </div>`;
