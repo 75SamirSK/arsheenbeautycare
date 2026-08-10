@@ -66,6 +66,7 @@
   .status-step span.lbl{font-size:10px;color:var(--ink-soft);}
   .status-step.done span.lbl{color:var(--rose-deep);font-weight:600;}
   .order-status-select{font-size:12px;padding:6px 8px;border-radius:7px;border:1px solid var(--ivory-deep);font-family:'Jost',sans-serif;margin-top:6px;}
+  .cancelled-banner{background:#FBEAEA;color:#A23B3B;border:1.5px solid #A23B3B;border-radius:8px;padding:8px 10px;font-weight:700;font-size:13px;}
 
   .filters{max-width:1100px;margin:0 auto;padding:0 18px 20px;display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;}
   .filters::-webkit-scrollbar{display:none;}
@@ -921,6 +922,51 @@ GRAND TOTAL: ₹${total}`;
 
   // ---------------- TRACK ORDER ----------------
   const STATUS_STEPS = ['Order Received','Packed','Shipped','Out for Delivery','Delivered'];
+  const SHIP_CUTOFF_IDX = STATUS_STEPS.indexOf('Shipped'); // cancellation allowed only before this stage
+  function canCancelOrder(status){
+    if(status === 'Cancelled') return false;
+    const idx = STATUS_STEPS.indexOf(status || 'Order Received');
+    return idx < SHIP_CUTOFF_IDX;
+  }
+  function renderStatusOrCancelledTrack(status){
+    if(status === 'Cancelled'){
+      return `<div class="cancelled-banner">❌ This order has been cancelled</div>`;
+    }
+    const stepIdx = STATUS_STEPS.indexOf(status || 'Order Received');
+    return `<div class="status-track">
+      ${STATUS_STEPS.map((s,i)=>`<div class="status-step ${i<=stepIdx?'done':''}"><div class="dot">${i<=stepIdx?'✓':i+1}</div><span class="lbl">${s}</span></div>`).join('')}
+    </div>`;
+  }
+  async function cancelOrder(id, refreshFn){
+    if(!id) return;
+    if(!confirm('Cancel this order? This cannot be undone.')) return;
+    try{
+      let currentStatus = 'Order Received';
+      if(firebaseReady && db){
+        const doc = await db.collection('orders').doc(id).get();
+        if(doc.exists) currentStatus = doc.data().status || 'Order Received';
+      } else {
+        const log = loadJSON('arsheen_order_log', []);
+        const o = log.find(o => o.id === id);
+        if(o) currentStatus = o.status || 'Order Received';
+      }
+      if(!canCancelOrder(currentStatus)){
+        showToast("This order has already shipped and can't be cancelled. Message us on WhatsApp for help.");
+        return;
+      }
+      if(firebaseReady && db){
+        await db.collection('orders').doc(id).update({ status: 'Cancelled', cancelledBy: 'customer', cancelledAt: firebase.firestore.FieldValue.serverTimestamp() });
+      }
+      const log = loadJSON('arsheen_order_log', []);
+      const localOrder = log.find(o => o.id === id);
+      if(localOrder){ localOrder.status = 'Cancelled'; localOrder.cancelledBy = 'customer'; localStorage.setItem('arsheen_order_log', JSON.stringify(log)); }
+      showToast('Order cancelled');
+      if(typeof refreshFn === 'function') refreshFn();
+    }catch(err){
+      console.error('Cancel order failed:', err);
+      showToast('Could not cancel — check your connection and try again');
+    }
+  }
   function openTrackSheet(){
     document.getElementById('trackOrderId').value = '';
     document.getElementById('trackPhone').value = '';
@@ -954,12 +1000,10 @@ GRAND TOTAL: ₹${total}`;
       return;
     }
     const status = order.status || 'Order Received';
-    const stepIdx = STATUS_STEPS.indexOf(status);
     resultWrap.innerHTML = `
-      <div class="status-track">
-        ${STATUS_STEPS.map((s,i)=>`<div class="status-step ${i<=stepIdx?'done':''}"><div class="dot">${i<=stepIdx?'✓':i+1}</div><span class="lbl">${s}</span></div>`).join('')}
-      </div>
-      <p class="empty-note">Order for ${order.name} · ₹${order.total} · placed ${order.date}</p>`;
+      ${renderStatusOrCancelledTrack(status)}
+      <p class="empty-note">Order for ${order.name} · ₹${order.total} · placed ${order.date}</p>
+      ${canCancelOrder(status) ? `<button class="secondary-btn" style="border-color:#A23B3B;color:#A23B3B;" onclick="cancelOrder('${order.id}', lookupOrder)">Cancel This Order</button>` : ''}`;
   }
 
   // ---------------- CUSTOMER ACCOUNT (free, no OTP) ----------------
@@ -1029,7 +1073,6 @@ GRAND TOTAL: ₹${total}`;
     }
     wrap.innerHTML = orders.map(o => {
       const status = o.status || 'Order Received';
-      const stepIdx = STATUS_STEPS.indexOf(status);
       return `
       <div class="order-log">
         ${o.id ? `<strong>Order ID: ${o.id}</strong><br>` : ''}
@@ -1038,9 +1081,8 @@ GRAND TOTAL: ₹${total}`;
         ${(o.summary||'').replace(/\n/g,'<br>')}<br>
         <strong>Total: ₹${o.total}</strong><br>
         <span style="color:var(--ink-soft);">${o.date}</span>
-        <div class="status-track" style="margin-top:10px;">
-          ${STATUS_STEPS.map((s,i)=>`<div class="status-step ${i<=stepIdx?'done':''}"><div class="dot">${i<=stepIdx?'✓':i+1}</div><span class="lbl">${s}</span></div>`).join('')}
-        </div>
+        <div style="margin-top:10px;">${renderStatusOrCancelledTrack(status)}</div>
+        ${canCancelOrder(status) ? `<button class="secondary-btn" style="border-color:#A23B3B;color:#A23B3B;margin-top:8px;" onclick="cancelOrder('${o.id}', openMyAccount)">Cancel This Order</button>` : ''}
       </div>`;
     }).join('');
   }
@@ -1301,8 +1343,12 @@ GRAND TOTAL: ₹${total}`;
       wrap.innerHTML = `<p class="empty-note">No orders yet${isLive===false ? ' on this device' : ''}.</p>`;
       return;
     }
-    wrap.innerHTML = log.map(o => `
-      <div class="order-log">
+    const ADMIN_STATUS_OPTIONS = [...STATUS_STEPS, 'Cancelled'];
+    wrap.innerHTML = log.map(o => {
+      const isCancelled = o.status === 'Cancelled';
+      return `
+      <div class="order-log" style="${isCancelled ? 'border:1.5px solid #A23B3B;background:#FBEAEA;' : ''}">
+        ${isCancelled ? `<div style="color:#A23B3B;font-weight:700;margin-bottom:6px;">❌ ORDER CANCELLED${o.cancelledBy==='customer' ? ' by customer' : ''}</div>` : ''}
         ${o.id ? `<strong>Order ID: ${o.id}</strong><br>` : ''}
         <strong>${o.name}</strong> — ${o.phone}<br>
         ${o.address}<br>
@@ -1315,9 +1361,10 @@ GRAND TOTAL: ₹${total}`;
         <span style="color:var(--ink-soft);">${o.date}</span>
         ${o.id ? `<br><label style="font-size:11.5px;color:var(--ink-soft);">Status:
           <select class="order-status-select" onchange="updateOrderStatus('${o.id}', this.value)">
-            ${STATUS_STEPS.map(s=>`<option value="${s}" ${(o.status||'Order Received')===s?'selected':''}>${s}</option>`).join('')}
+            ${ADMIN_STATUS_OPTIONS.map(s=>`<option value="${s}" ${(o.status||'Order Received')===s?'selected':''}>${s}</option>`).join('')}
           </select></label>` : ''}
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
   function clearOrderLog(){
     if(!confirm("This only clears the offline backup copy stored on this device. It does NOT delete your live cloud orders, emails, or WhatsApp messages. Continue?")) return;
