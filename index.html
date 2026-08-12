@@ -1327,6 +1327,43 @@ GRAND TOTAL: ₹${total}`;
   // ---------------- ADMIN: ORDERS ----------------
   let liveOrders = [];
   let ordersUnsubscribe = null;
+  // ---------------- LIVE CATALOG SYNC (products + categories) ----------------
+let catalogUnsubscribe = null;
+let applyingRemoteCatalog = false;
+
+function persistCatalogToCloud(){
+  if(!firebaseReady || !db || applyingRemoteCatalog) return;
+  db.collection('store').doc('catalog').set({
+    products: PRODUCTS,
+    categories: CATEGORIES,
+    categoryImages: CATEGORY_IMAGES,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(err => console.error('Cloud catalog save failed (this device still has a local copy):', err));
+}
+
+function startCatalogListener(){
+  if(!firebaseReady || !db || catalogUnsubscribe) return;
+  catalogUnsubscribe = db.collection('store').doc('catalog').onSnapshot(doc => {
+    if(!doc.exists){
+      // First time ever — push whatever is on this device up as the master copy.
+      persistCatalogToCloud();
+      return;
+    }
+    const data = doc.data();
+    applyingRemoteCatalog = true;
+    if(Array.isArray(data.products)) PRODUCTS = data.products;
+    if(Array.isArray(data.categories)) CATEGORIES = data.categories;
+    if(data.categoryImages) CATEGORY_IMAGES = data.categoryImages;
+    persistProducts(); persistCategories(); persistCategoryImages();
+    applyingRemoteCatalog = false;
+
+    renderFilters(); renderProducts();
+    const dash = document.getElementById('adminDashboard');
+    if(dash && dash.classList.contains('open')){
+      renderAdminProductList(); renderCategoryList(); renderProductCategoryChips(); renderOverviewStats();
+    }
+  }, err => console.error('Catalog live sync failed — showing local copy on this device:', err));
+}
   function startLiveOrdersListener(){
     if(!firebaseReady || !db){
       // No cloud connection — fall back to this device's local backup only.
@@ -1428,7 +1465,8 @@ GRAND TOTAL: ₹${total}`;
     CATEGORIES = [...DEFAULT_CATEGORIES];
     CATEGORY_IMAGES = Object.assign({}, DEFAULT_CATEGORY_IMAGES);
     SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
-    persistProducts(); persistCategories(); persistCategoryImages(); persistSettings();
+    persistProducts();{ localStorage.setItem('arsheen_products', JSON.stringify(PRODUCTS)); }
+    persistCatalogToCloud(); } persistCategories(){ localStorage.setItem('arsheen_categories', JSON.stringify(CATEGORIES)); persistCatalogToCloud() }; persistCategoryImages(){ localStorage.setItem('arsheen_category_images', JSON.stringify(CATEGORY_IMAGES)); }persistCatalogToCloud(); }; persistSettings();
     renderFilters(); renderProducts(); applySettingsToLinks();
     fillSettingsForm(); renderProductCategoryChips(); renderAdminProductList(); renderCategoryList(); renderOverviewStats();
     showToast("Reset complete");
@@ -1455,6 +1493,7 @@ GRAND TOTAL: ₹${total}`;
 
   // ---------------- INIT ----------------
   renderFilters();
+  startCatalogListener();
   renderProducts();
   updateCartBadge();
   applySettingsToLinks();
