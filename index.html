@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1465,8 +1466,11 @@ function startCatalogListener(){
     CATEGORIES = [...DEFAULT_CATEGORIES];
     CATEGORY_IMAGES = Object.assign({}, DEFAULT_CATEGORY_IMAGES);
     SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
-    persistProducts();{ localStorage.setItem('arsheen_products', JSON.stringify(PRODUCTS)); }
-    persistCatalogToCloud(); } persistCategories(){ localStorage.setItem('arsheen_categories', JSON.stringify(CATEGORIES)); persistCatalogToCloud() }; persistCategoryImages(){ localStorage.setItem('arsheen_category_images', JSON.stringify(CATEGORY_IMAGES)); }persistCatalogToCloud(); }; persistSettings();
+    persistProducts();
+    persistCategories();
+    persistCategoryImages();
+    persistSettings();
+    persistCatalogToCloud();
     renderFilters(); renderProducts(); applySettingsToLinks();
     fillSettingsForm(); renderProductCategoryChips(); renderAdminProductList(); renderCategoryList(); renderOverviewStats();
     showToast("Reset complete");
