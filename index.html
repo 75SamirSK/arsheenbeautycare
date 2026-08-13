@@ -645,9 +645,9 @@
   let activeCategory = "All";
   let selectedPayMethod = "cod";
 
-  function persistProducts(){ localStorage.setItem('arsheen_products', JSON.stringify(PRODUCTS)); }
-  function persistCategories(){ localStorage.setItem('arsheen_categories', JSON.stringify(CATEGORIES)); }
-  function persistCategoryImages(){ localStorage.setItem('arsheen_category_images', JSON.stringify(CATEGORY_IMAGES)); }
+  function persistProducts(){ localStorage.setItem('arsheen_products', JSON.stringify(PRODUCTS)); persistCatalogToCloud(); }
+  function persistCategories(){ localStorage.setItem('arsheen_categories', JSON.stringify(CATEGORIES)); persistCatalogToCloud(); }
+  function persistCategoryImages(){ localStorage.setItem('arsheen_category_images', JSON.stringify(CATEGORY_IMAGES)); persistCatalogToCloud(); }
   function persistSettings(){ localStorage.setItem('arsheen_settings', JSON.stringify(SETTINGS)); }
   function categoryImage(cat){
     return CATEGORY_IMAGES[cat] || `https://placehold.co/200x200/F1D9DD/8C4A5C?text=${encodeURIComponent(cat.charAt(0).toUpperCase())}`;
