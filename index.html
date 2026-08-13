@@ -1417,12 +1417,22 @@ let applyingRemoteCatalog = false;
 
 function persistCatalogToCloud(){
   if(!firebaseReady || !db || applyingRemoteCatalog) return;
+  const payload = { products: PRODUCTS, categories: CATEGORIES, categoryImages: CATEGORY_IMAGES };
+  const approxSize = new Blob([JSON.stringify(payload)]).size;
+  if(approxSize > 900000){
+    console.error('Catalog too large to sync to cloud:', approxSize, 'bytes');
+    if(typeof showToast === 'function') showToast("⚠️ Too many uploaded photos — this product saved only on THIS device. Use image links (e.g. imgbb.com) instead of uploading photos, then re-save.");
+    return;
+  }
   db.collection('store').doc('catalog').set({
     products: PRODUCTS,
     categories: CATEGORIES,
     categoryImages: CATEGORY_IMAGES,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(err => console.error('Cloud catalog save failed (this device still has a local copy):', err));
+  }).catch(err => {
+    console.error('Cloud catalog save failed (this device still has a local copy):', err);
+    if(typeof showToast === 'function') showToast("⚠️ Cloud sync failed — this product saved only on THIS device, not visible to customers yet.");
+  });
 }
 
 function startCatalogListener(){
