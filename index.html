@@ -209,6 +209,15 @@
   .cat-row-imgedit input{flex:1;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid var(--ivory-deep);font-size:12px;font-family:'Jost',sans-serif;}
   .img-preview{width:100%;max-width:140px;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:var(--blush);margin-bottom:8px;border:1px solid var(--ivory-deep);}
   .img-preview img{width:100%;height:100%;object-fit:cover;}
+  .pd-thumb-strip{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .pd-thumb-strip .thumb-slot{position:relative;width:70px;height:70px;border-radius:8px;overflow:hidden;background:var(--blush);border:1px solid var(--ivory-deep);}
+  .pd-thumb-strip .thumb-slot img{width:100%;height:100%;object-fit:cover;}
+  .pd-thumb-strip .thumb-slot button{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.55);color:#fff;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .pd-gallery-main{width:100%;aspect-ratio:1/1;max-width:320px;margin:0 auto;background:var(--blush);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);position:relative;}
+  .pd-gallery-main img{width:100%;height:100%;object-fit:cover;}
+  .pd-gallery-thumbs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0 4px;}
+  .pd-gallery-thumbs img{width:52px;height:52px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;opacity:.7;}
+  .pd-gallery-thumbs img.active{border-color:var(--rose-deep);opacity:1;}
   .empty-note{font-size:12.5px;color:var(--ink-soft);text-align:center;padding:20px 0;}
   .order-log{background:var(--white);border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:8px;border:1px solid var(--ivory-deep);text-align:left;line-height:1.5;}
   .stat-row{display:flex;gap:10px;margin-bottom:14px;}
@@ -452,9 +461,15 @@
     <div class="admin-pane" id="tab-products">
       <div class="admin-card">
         <h3 id="prodFormTitle">Add a Product</h3>
-        <div class="img-preview" id="prodImgPreview"><img id="prodImgPreviewImg" src="" alt="" style="display:none;"></div>
-        <div class="field"><label for="prodImgFile">Product Photo (upload from your phone/computer)</label><input type="file" id="prodImgFile" accept="image/*" onchange="handleProdImageUpload(event)"></div>
-        <div class="field"><label for="prodImgUrl">...or paste an image link (imgbb.com etc.)</label><input type="text" id="prodImgUrl" placeholder="https://..." oninput="handleProdImageUrl(event)"></div>
+        <div class="field"><label>Product Photos — add at least 3 for a professional look</label></div>
+        <div class="pd-thumb-strip" id="prodImgThumbStrip"></div>
+        <div class="field"><label for="prodImgFile">Upload photo(s) from your phone/computer (you can select several at once)</label><input type="file" id="prodImgFile" accept="image/*" multiple onchange="handleProdImageUpload(event)"></div>
+        <div class="field"><label for="prodImgUrl">...or paste an image link (imgbb.com etc.) and click Add</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="prodImgUrl" placeholder="https://..." style="flex:1;">
+            <button type="button" class="secondary-btn" style="white-space:nowrap;" onclick="addProdImageUrl()">Add</button>
+          </div>
+        </div>
         <div class="field"><label for="prodName">Product Name *</label><input type="text" id="prodName" placeholder="e.g. Rose Glow Vitamin C Serum"></div>
         <div class="field"><label for="prodPrice">Price (₹) *</label><input type="number" id="prodPrice" min="0" placeholder="e.g. 499"></div>
         <div class="field"><label for="prodWeight">Weight (grams) — used to calculate shipping</label><input type="number" id="prodWeight" min="1" placeholder="e.g. 250"></div>
@@ -599,22 +614,22 @@
   };
 
   const DEFAULT_PRODUCTS = [
-    { id:1,  name:"Rose Glow Vitamin C Serum", price:499, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum", weight:150, description:"A lightweight, fast-absorbing Vitamin C serum that brightens dull skin, fades dark spots, and evens out tone. Infused with rose extract and hyaluronic acid for extra hydration. Suitable for all skin types — use a few drops every morning before moisturiser for visibly glowing skin within weeks." },
-    { id:2,  name:"Ivory Matte Compact Powder", price:349, category:"Cosmetics", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact", weight:120, description:"A silky matte compact powder that controls shine and blurs pores for a soft-focus, natural finish. Buildable coverage that lasts all day without caking. Comes with a mirror and puff for quick touch-ups on the go." },
-    { id:3,  name:"Blush Petal Lipstick Duo", price:599, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick", weight:100, description:"Two creamy, richly pigmented lipstick shades in one pack — a soft everyday nude and a bold petal pink. Long-wearing, moisturising formula that won't dry out your lips. Perfect for switching up your look in seconds." },
-    { id:4,  name:"Arsheen Signature Eau de Parfum", price:1299, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume", weight:250, description:"Our signature fragrance — a warm, elegant blend of rose, amber and soft musk that lasts 8+ hours. Comes in a beautifully designed glass bottle, perfect for everyday wear or gifting. A scent that's romantic without being overpowering." },
-    { id:5,  name:"Quilted Rose Sling Handbag", price:1899, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag", weight:600, description:"A quilted sling bag in soft rose-tone faux leather with gold-tone hardware. Roomy enough for your phone, wallet and everyday essentials, with an adjustable strap for crossbody or shoulder wear. A versatile everyday accessory that pairs with both ethnic and western outfits." },
-    { id:6,  name:"Ivory Tote Handbag", price:1599, category:"Handbags", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote", weight:650, description:"A spacious ivory tote with a structured shape, perfect for work or daily errands. Sturdy double handles, a secure zip closure, and an interior pocket to keep things organised. Neutral tone that goes with everything in your wardrobe." },
-    { id:7,  name:"1gm Gold-Polish Kundan Necklace Set", price:899, category:"Jewellery", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace", weight:80, description:"An elegant Kundan-studded necklace set with matching earrings, finished in 1gm gold polish for a rich, long-lasting shine. Ideal for festive occasions, weddings, or dressing up an everyday saree/kurti. Lightweight and comfortable for all-day wear." },
-    { id:8,  name:"1gm Gold-Polish Jhumka Earrings", price:449, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka", weight:50, description:"Classic bell-shaped jhumka earrings in 1gm gold polish with fine detailing. Lightweight enough for daily wear yet festive enough for special occasions. A timeless addition to your jewellery collection." },
-    { id:9,  name:"Almond & Honey Body Lotion", price:299, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion", weight:200, description:"A deeply nourishing body lotion made with almond oil and honey extract to soothe dry, rough skin. Fast-absorbing, non-greasy formula that leaves skin soft and lightly fragranced all day. Great for daily use after a shower." },
-    { id:10, name:"Rose Water Face Toner", price:199, category:"Skin Care", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner", weight:180, description:"Pure rose water toner that refreshes skin, tightens pores, and restores your skin's natural pH after cleansing. Alcohol-free and gentle enough for daily use, even on sensitive skin. Can also be used as a refreshing face mist throughout the day." },
-    { id:11, name:"Ceramic Hair Straightener", price:1099, category:"Hair Tools", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener", weight:500, description:"A ceramic-coated hair straightener that glides smoothly through hair with even heat distribution, reducing frizz and damage. Adjustable temperature settings for different hair types. Heats up quickly, perfect for quick styling before you head out." },
-    { id:12, name:"Professional Hair Dryer 1800W", price:1299, category:"Hair Tools", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer", weight:700, description:"A powerful 1800W hair dryer with multiple heat and speed settings for salon-style blow-drying at home. Lightweight design with a cool-shot button to lock in your style. Comes with a concentrator nozzle for precise styling." },
-    { id:13, name:"Kajal & Eyeliner Combo", price:249, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal", weight:60, description:"A smudge-proof kajal and precision eyeliner combo for bold, long-lasting eye definition. Deep black pigment that glides on smoothly without tugging. Stays put through long days without smudging or fading." },
-    { id:14, name:"Mini Perfume Gift Set (3x20ml)", price:799, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set", weight:200, description:"A set of three 20ml travel-friendly perfumes in floral, fruity and musky notes — perfect for trying different scents or gifting someone special. Comes in an elegant gift box, ready to present as-is. Great for travel too, since each bottle is under the usual liquid limit." },
-    { id:15, name:"Clutch Purse — Rose Gold", price:999, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch", weight:350, description:"A sleek rose gold clutch with a magnetic clasp, perfect for evenings out, weddings, or festive gatherings. Fits your phone, cards and essentials comfortably. Pairs beautifully with both western dresses and ethnic wear." },
-    { id:16, name:"1gm Gold-Polish Bangles Set (4pc)", price:749, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles", weight:70, description:"A set of 4 intricately designed bangles in 1gm gold polish, perfect for stacking or wearing individually. Durable polish that resists tarnishing with normal care. A versatile set that complements both traditional and modern outfits." },
+    { id:1,  name:"Rose Glow Vitamin C Serum", price:499, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum", weight:150, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum&v=3"], description:"A lightweight, fast-absorbing Vitamin C serum that brightens dull skin, fades dark spots, and evens out tone. Infused with rose extract and hyaluronic acid for extra hydration. Suitable for all skin types — use a few drops every morning before moisturiser for visibly glowing skin within weeks." },
+    { id:2,  name:"Ivory Matte Compact Powder", price:349, category:"Cosmetics", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact", weight:120, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact&v=3"], description:"A silky matte compact powder that controls shine and blurs pores for a soft-focus, natural finish. Buildable coverage that lasts all day without caking. Comes with a mirror and puff for quick touch-ups on the go." },
+    { id:3,  name:"Blush Petal Lipstick Duo", price:599, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick", weight:100, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick&v=3"], description:"Two creamy, richly pigmented lipstick shades in one pack — a soft everyday nude and a bold petal pink. Long-wearing, moisturising formula that won't dry out your lips. Perfect for switching up your look in seconds." },
+    { id:4,  name:"Arsheen Signature Eau de Parfum", price:1299, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume", weight:250, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume&v=3"], description:"Our signature fragrance — a warm, elegant blend of rose, amber and soft musk that lasts 8+ hours. Comes in a beautifully designed glass bottle, perfect for everyday wear or gifting. A scent that's romantic without being overpowering." },
+    { id:5,  name:"Quilted Rose Sling Handbag", price:1899, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag", weight:600, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag&v=3"], description:"A quilted sling bag in soft rose-tone faux leather with gold-tone hardware. Roomy enough for your phone, wallet and everyday essentials, with an adjustable strap for crossbody or shoulder wear. A versatile everyday accessory that pairs with both ethnic and western outfits." },
+    { id:6,  name:"Ivory Tote Handbag", price:1599, category:"Handbags", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote", weight:650, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote&v=3"], description:"A spacious ivory tote with a structured shape, perfect for work or daily errands. Sturdy double handles, a secure zip closure, and an interior pocket to keep things organised. Neutral tone that goes with everything in your wardrobe." },
+    { id:7,  name:"1gm Gold-Polish Kundan Necklace Set", price:899, category:"Jewellery", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace", weight:80, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace&v=3"], description:"An elegant Kundan-studded necklace set with matching earrings, finished in 1gm gold polish for a rich, long-lasting shine. Ideal for festive occasions, weddings, or dressing up an everyday saree/kurti. Lightweight and comfortable for all-day wear." },
+    { id:8,  name:"1gm Gold-Polish Jhumka Earrings", price:449, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka", weight:50, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka&v=3"], description:"Classic bell-shaped jhumka earrings in 1gm gold polish with fine detailing. Lightweight enough for daily wear yet festive enough for special occasions. A timeless addition to your jewellery collection." },
+    { id:9,  name:"Almond & Honey Body Lotion", price:299, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion", weight:200, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion&v=3"], description:"A deeply nourishing body lotion made with almond oil and honey extract to soothe dry, rough skin. Fast-absorbing, non-greasy formula that leaves skin soft and lightly fragranced all day. Great for daily use after a shower." },
+    { id:10, name:"Rose Water Face Toner", price:199, category:"Skin Care", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner", weight:180, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner&v=3"], description:"Pure rose water toner that refreshes skin, tightens pores, and restores your skin's natural pH after cleansing. Alcohol-free and gentle enough for daily use, even on sensitive skin. Can also be used as a refreshing face mist throughout the day." },
+    { id:11, name:"Ceramic Hair Straightener", price:1099, category:"Hair Tools", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener", weight:500, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener&v=3"], description:"A ceramic-coated hair straightener that glides smoothly through hair with even heat distribution, reducing frizz and damage. Adjustable temperature settings for different hair types. Heats up quickly, perfect for quick styling before you head out." },
+    { id:12, name:"Professional Hair Dryer 1800W", price:1299, category:"Hair Tools", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer", weight:700, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer&v=3"], description:"A powerful 1800W hair dryer with multiple heat and speed settings for salon-style blow-drying at home. Lightweight design with a cool-shot button to lock in your style. Comes with a concentrator nozzle for precise styling." },
+    { id:13, name:"Kajal & Eyeliner Combo", price:249, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal", weight:60, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal&v=3"], description:"A smudge-proof kajal and precision eyeliner combo for bold, long-lasting eye definition. Deep black pigment that glides on smoothly without tugging. Stays put through long days without smudging or fading." },
+    { id:14, name:"Mini Perfume Gift Set (3x20ml)", price:799, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set", weight:200, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set&v=3"], description:"A set of three 20ml travel-friendly perfumes in floral, fruity and musky notes — perfect for trying different scents or gifting someone special. Comes in an elegant gift box, ready to present as-is. Great for travel too, since each bottle is under the usual liquid limit." },
+    { id:15, name:"Clutch Purse — Rose Gold", price:999, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch", weight:350, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch&v=3"], description:"A sleek rose gold clutch with a magnetic clasp, perfect for evenings out, weddings, or festive gatherings. Fits your phone, cards and essentials comfortably. Pairs beautifully with both western dresses and ethnic wear." },
+    { id:16, name:"1gm Gold-Polish Bangles Set (4pc)", price:749, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles", weight:70, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles&v=3"], description:"A set of 4 intricately designed bangles in 1gm gold polish, perfect for stacking or wearing individually. Durable polish that resists tarnishing with normal care. A versatile set that complements both traditional and modern outfits." },
   ];
 
   // ---------------- PERSISTED STATE ----------------
@@ -727,8 +742,14 @@
     if(!p) return;
     const wrap = document.getElementById('productDetailWrap');
     const weightLabel = p.weight >= 1000 ? (p.weight/1000)+" kg" : (p.weight||250)+" g";
+    const images = (p.images && p.images.length) ? p.images : [p.img];
+    const thumbsHtml = images.length > 1 ? `
+      <div class="pd-gallery-thumbs" id="pdThumbs">
+        ${images.map((src,i)=>`<img src="${src}" class="${i===0?'active':''}" onclick="switchProductImage(${i})" onerror="this.style.display='none'">`).join('')}
+      </div>` : '';
     wrap.innerHTML = `
-      <div class="pd-img"><img src="${p.img}" alt="${p.name}" onerror="this.style.display='none'"></div>
+      <div class="pd-gallery-main"><img id="pdMainImg" src="${images[0]}" alt="${p.name}" onerror="this.style.display='none'"></div>
+      ${thumbsHtml}
       <div style="text-align:center;">
         <span class="pd-cat">${p.category}</span>
         <h3 class="pd-title">${p.name}</h3>
@@ -739,6 +760,13 @@
         <button class="primary-btn" id="pdAddBtn" onclick="addToCart(${p.id}); this.textContent='Added ✓';">Add to Cart</button>
       </div>`;
     openSheet('productDetailSheet');
+  }
+  function switchProductImage(i){
+    const thumbs = document.querySelectorAll('#pdThumbs img');
+    const src = thumbs[i]?.src;
+    if(!src) return;
+    document.getElementById('pdMainImg').src = src;
+    thumbs.forEach((t,idx)=>t.classList.toggle('active', idx===i));
   }
 
   function addToCart(id){
@@ -1191,27 +1219,40 @@ GRAND TOTAL: ₹${total}`;
   }
 
   // ---------------- ADMIN: PRODUCTS ----------------
-  let pendingImageData = "";
-  function handleProdImageUpload(e){
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev){
-      pendingImageData = ev.target.result; // base64 data URL
-      document.getElementById('prodImgUrl').value = '';
-      const img = document.getElementById('prodImgPreviewImg');
-      img.src = pendingImageData; img.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
+  let pendingImages = [];
+  function renderProdImgThumbStrip(){
+    const strip = document.getElementById('prodImgThumbStrip');
+    strip.innerHTML = pendingImages.map((src,i) => `
+      <div class="thumb-slot">
+        <img src="${src}" alt="">
+        <button type="button" onclick="removeProdImage(${i})">✕</button>
+      </div>`).join('');
   }
-  function handleProdImageUrl(e){
-    const val = e.target.value.trim();
-    if(val){
-      pendingImageData = val;
-      const img = document.getElementById('prodImgPreviewImg');
-      img.src = val; img.style.display = 'block';
-      document.getElementById('prodImgFile').value = '';
-    }
+  function removeProdImage(i){
+    pendingImages.splice(i,1);
+    renderProdImgThumbStrip();
+  }
+  function handleProdImageUpload(e){
+    const files = Array.from(e.target.files || []);
+    if(!files.length) return;
+    let remaining = files.length;
+    files.forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = function(ev){
+        pendingImages.push(ev.target.result); // base64 data URL
+        remaining--;
+        if(remaining===0){ renderProdImgThumbStrip(); e.target.value=''; }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function addProdImageUrl(){
+    const input = document.getElementById('prodImgUrl');
+    const val = input.value.trim();
+    if(!val){ showToast("Paste an image link first"); return; }
+    pendingImages.push(val);
+    input.value = '';
+    renderProdImgThumbStrip();
   }
   let selectedProdCategory = "";
   function renderProductCategoryChips(){
@@ -1233,15 +1274,17 @@ GRAND TOTAL: ₹${total}`;
     if(!name){ showToast("Enter a product name"); return; }
     if(!price || price<=0){ showToast("Enter a valid price"); return; }
     if(!selectedProdCategory){ showToast("Pick a category"); return; }
-    const img = pendingImageData || (editId ? PRODUCTS.find(p=>p.id==editId)?.img : '') || 'https://placehold.co/500x500/F1D9DD/8C4A5C?text=Product';
+    const images = pendingImages.length ? pendingImages.slice(0,8)
+      : (editId ? (PRODUCTS.find(p=>p.id==editId)?.images || []) : []);
+    const img = images[0] || (editId ? PRODUCTS.find(p=>p.id==editId)?.img : '') || 'https://placehold.co/500x500/F1D9DD/8C4A5C?text=Product';
 
     if(editId){
       const p = PRODUCTS.find(p=>p.id==editId);
-      if(p){ p.name=name; p.price=price; p.category=selectedProdCategory; p.img=img; p.weight=weight; p.description=description; }
+      if(p){ p.name=name; p.price=price; p.category=selectedProdCategory; p.img=img; p.images=images; p.weight=weight; p.description=description; }
       showToast("Product updated");
     } else {
       const newId = PRODUCTS.length ? Math.max(...PRODUCTS.map(p=>p.id))+1 : 1;
-      PRODUCTS.push({ id:newId, name, price, category:selectedProdCategory, img, weight, description });
+      PRODUCTS.push({ id:newId, name, price, category:selectedProdCategory, img, images, weight, description });
       showToast("Product added");
     }
     persistProducts();
@@ -1260,9 +1303,8 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('prodDesc').value = p.description || '';
     selectedProdCategory = p.category;
     renderProductCategoryChips();
-    pendingImageData = p.img;
-    const img = document.getElementById('prodImgPreviewImg');
-    img.src = p.img; img.style.display='block';
+    pendingImages = (p.images && p.images.length) ? [...p.images] : (p.img ? [p.img] : []);
+    renderProdImgThumbStrip();
     document.getElementById('prodImgUrl').value = '';
     document.getElementById('prodFormTitle').textContent = "Edit Product";
     document.getElementById('cancelEditBtn').style.display = 'block';
@@ -1286,8 +1328,9 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('prodDesc').value = '';
     document.getElementById('prodImgUrl').value = '';
     document.getElementById('prodImgFile').value = '';
-    document.getElementById('prodImgPreviewImg').style.display = 'none';
-    selectedProdCategory = ""; pendingImageData = "";
+    pendingImages = [];
+    renderProdImgThumbStrip();
+    selectedProdCategory = "";
     renderProductCategoryChips();
     document.getElementById('prodFormTitle').textContent = "Add a Product";
     document.getElementById('cancelEditBtn').style.display = 'none';
