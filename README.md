@@ -22,4 +22,4 @@ Then visit the printed local URL.
 
 ## Deploying
 
-The site deploys as-is: Netlify serves `index.html` at the root. No build command is required.
+The site deploys automatically via GitHub Pages serving `index.html` at the root.
