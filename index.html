@@ -580,6 +580,8 @@ const firebaseConfig = {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     firebaseReady = true;
+    loadProductsFromFirestore();
+    listenForProducts();
   }catch(e){
     console.error('Firebase failed to initialize — falling back to local-only order storage.', e);
   }
@@ -1277,11 +1279,11 @@ GRAND TOTAL: ₹${total}`;
         <button type="button" onclick="removeProdImage(${i})">✕</button>
       </div>`).join('');
   }
-  function removeProdImage(i){
+  function removeProductImage(i){
     pendingImages.splice(i,1);
     renderProdImgThumbStrip();
   }
-  function handleProdImageUpload(e){
+  function handleProductImageUpload(e){
     const files = Array.from(e.target.files || []);
     if(!files.length) return;
     let remaining = files.length;
@@ -1301,51 +1303,88 @@ GRAND TOTAL: ₹${total}`;
     if(!val){ showToast("Paste an image link first"); return; }
     pendingImages.push(val);
     input.value = '';
-    renderProdImgThumbStrip();
+    renderProductImgThumbStrip();
   }
-  let selectedProdCategory = "";
+  let selectedProductCategory = "";
   function renderProductCategoryChips(){
     const wrap = document.getElementById('prodCatChips');
     wrap.innerHTML = CATEGORIES.map(c =>
-      `<button type="button" class="chip ${c===selectedProdCategory?'active':''}" onclick="pickProdCategory('${c.replace(/'/g,"\\'")}')">${c}</button>`
+      `<button type="button" class="chip ${c===selectedProductCategory?'active':''}" onclick="pickProductCategory('${c.replace(/'/g,"\\'")}')">${c}</button>`
     ).join('');
   }
-  function pickProdCategory(c){
+  function pickProductCategory(c){
     selectedProdCategory = c;
     renderProductCategoryChips();
   }
-  function saveProduct(){
-    const name = document.getElementById('prodName').value.trim();
-    const price = parseFloat(document.getElementById('prodPrice').value);
-    const mrpRaw = document.getElementById('prodMrp').value;
-    const mrp = mrpRaw ? parseFloat(mrpRaw) : null;
-    const weight = parseFloat(document.getElementById('prodWeight').value) || 250;
-    const description = document.getElementById('prodDesc').value.trim();
-    const editId = document.getElementById('prodEditId').value;
-    if(!name){ showToast("Enter a product name"); return; }
-    if(!price || price<=0){ showToast("Enter a valid price"); return; }
-    if(mrp && mrp < price){ showToast("MRP should be higher than or equal to the selling price"); return; }
-    if(!selectedProdCategory){ showToast("Pick a category"); return; }
-    const images = pendingImages.length ? pendingImages.slice(0,8)
-      : (editId ? (PRODUCTS.find(p=>p.id==editId)?.images || []) : []);
-    const img = images[0] || (editId ? PRODUCTS.find(p=>p.id==editId)?.img : '') || 'https://placehold.co/500x500/F1D9DD/8C4A5C?text=Product';
+function saveProduct(){
+  const name = document.getElementById('prodName').value.trim();
+  const price = parseFloat(document.getElementById('prodPrice').value);
+  const mrpRaw = document.getElementById('prodMrp').value;
+  const mrp = mrpRaw ? parseFloat(mrpRaw) : null;
+  const weight = parseFloat(document.getElementById('prodWeight').value) || 250;
+  const description = document.getElementById('prodDesc').value.trim();
+  const editId = document.getElementById('prodEditId').value;
 
-    if(editId){
-      const p = PRODUCTS.find(p=>p.id==editId);
-      if(p){ p.name=name; p.price=price; p.mrp=mrp; p.category=selectedProdCategory; p.img=img; p.images=images; p.weight=weight; p.description=description; }
-      showToast("Product updated");
+  if(!name){ showToast("Enter a product name"); return; }
+  if(!price || price<=0){ showToast("Enter a valid price"); return; }
+  if(mrp && mrp < price){ showToast("MRP should be higher than or equal to the selling price"); return; }
+  if(!selectedProdCategory){ showToast("Pick a category"); return; }
+
+  const images = pendingImages.length ? pendingImages.slice(0,8)
+    : (editId ? (PRODUCTS.find(p=>p.id==editId)?.images || []) : []);
+  const img = images[0] || (editId ? PRODUCTS.find(p=>p.id==editId)?.img : '') || 'https://placeholder.co/500x500/F1D9DD/8C4A5C?text=Product';
+
+  const productData = {
+    name,
+    price,
+    mrp,
+    category: selectedProdCategory,
+    img,
+    images,
+    weight,
+    description,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (firebaseReady && db) {
+    if (editId) {
+      db.collection("products").doc(String(editId)).set(productData, { merge: true })
+        .then(() => showToast("Product updated in cloud!"))
+        .catch(e => console.error("Firestore update error:", e));
     } else {
-      const newId = PRODUCTS.length ? Math.max(...PRODUCTS.map(p=>p.id))+1 : 1;
-      PRODUCTS.push({ id:newId, name, price, mrp, category:selectedProdCategory, img, images, weight, description });
-      showToast("Product added");
+      db.collection("products").add(productData)
+        .then(() => showToast("Product added live to cloud!"))
+        .catch(e => console.error("Firestore add error:", e));
+    }
+  } else {
+    if (editId) {
+      const p = PRODUCTS.find(p => p.id == editId);
+      if (p) Object.assign(p, productData);
+    } else {
+      const newId = PRODUCTS.length ? Math.max(...PRODUCTS.map(p => p.id)) + 1 : 1;
+      PRODUCTS.push({ id: newId, ...productData });
     }
     persistProducts();
-    resetProductForm();
-    renderAdminProductList();
-    renderOverviewStats();
-    renderFilters(); renderProducts();
+    showToast("Product saved locally");
   }
-  function editProduct(id){
+
+  resetProductForm();
+}
+
+function loadProductsFromFirestore() {
+  if (firebaseReady && db) {
+    db.collection("products").onSnapshot((snapshot) => {
+      if (!snapshot.empty) {
+        PRODUCTS = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        renderProducts();
+      }
+    });
+  }
+}    
+ function editProduct(id){
     const p = PRODUCTS.find(p=>p.id==id);
     if(!p) return;
     document.getElementById('prodEditId').value = p.id;
