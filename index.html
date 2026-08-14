@@ -564,15 +564,16 @@
    dashboard listens to this collection live — so orders show up on the
    owner's device instantly, no matter where the order was placed.
    ======================================================================= */
-  const firebaseConfig = {
-    apiKey: "AIzaSyCZfDc2ACBbnqylGm0BvGOBhqPNE6mawf0",
-    authDomain: "arsheen-1dc9c.firebaseapp.com",
-    projectId: "arsheen-1dc9c",
-    storageBucket: "arsheen-1dc9c.firebasestorage.app",
-    messagingSenderId: "356467986022",
-    appId: "1:356467986022:web:1bd62112566745f6eca7a7",
-    measurementId: "G-1RD0QJH82L"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyCZfDc2ACBbnqy1Gm0BvGOBhqPNE6mawF0",
+  authDomain: "arsheen-1dc9c.firebaseapp.com",
+  databaseURL: "https://arsheen-1dc9c-default-rtdb.firebaseio.com",
+  projectId: "arsheen-1dc9c",
+  storageBucket: "arsheen-1dc9c.firebasestorage.app",
+  messagingSenderId: "356467986022",
+  appId: "1:356467986022:web:1bd62112566745f6eca7a7",
+  measurementId: "G-1RD0QJH82L"
+};
   let db = null;
   let firebaseReady = false;
   try{
