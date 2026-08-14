@@ -1247,7 +1247,7 @@ GRAND TOTAL: ₹${total}`;
     document.body.style.overflow = 'hidden';
     switchAdminTab('overview');
     fillSettingsForm();
-    renderProductCategoryChips();
+    renderProdCategoryChips();
     renderAdminProductList();
     renderCategoryList();
     startLiveOrdersListener();
@@ -1258,11 +1258,12 @@ GRAND TOTAL: ₹${total}`;
     document.body.style.overflow = '';
     if(ordersUnsubscribe){ ordersUnsubscribe(); ordersUnsubscribe = null; }
   }
-  function switchAdminTab(tab){
-    document.querySelectorAll('.admin-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
-    document.querySelectorAll('.admin-pane').forEach(p=>p.classList.toggle('active', p.id==='tab-'+tab));
-    if(tab==='overview') renderOverviewStats();
-  }
+function switchAdminTab(tab){
+  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab==tab));
+  document.querySelectorAll('.admin-pane').forEach(p=>p.classList.toggle('active', p.id=='tab-'+tab));
+  if(tab==='overview') renderOverviewStats();
+  if(tab==='products') renderProdCategoryChips();
+}
   function renderOverviewStats(){
     document.getElementById('statProducts').textContent = PRODUCTS.length;
     document.getElementById('statCategories').textContent = CATEGORIES.length;
