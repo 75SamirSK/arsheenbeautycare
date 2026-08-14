@@ -1279,11 +1279,11 @@ GRAND TOTAL: ₹${total}`;
         <button type="button" onclick="removeProdImage(${i})">✕</button>
       </div>`).join('');
   }
-  function removeProductImage(i){
+  function removeProdImage(i){
     pendingImages.splice(i,1);
     renderProdImgThumbStrip();
   }
-  function handleProductImageUpload(e){
+  function handleProdImageUpload(e){
     const files = Array.from(e.target.files || []);
     if(!files.length) return;
     let remaining = files.length;
@@ -1303,18 +1303,18 @@ GRAND TOTAL: ₹${total}`;
     if(!val){ showToast("Paste an image link first"); return; }
     pendingImages.push(val);
     input.value = '';
-    renderProductImgThumbStrip();
+    renderProdImgThumbStrip();
   }
-  let selectedProductCategory = "";
-  function renderProductCategoryChips(){
+  let selectedProdCategory = "";
+  function renderProdCategoryChips(){
     const wrap = document.getElementById('prodCatChips');
     wrap.innerHTML = CATEGORIES.map(c =>
-      `<button type="button" class="chip ${c===selectedProductCategory?'active':''}" onclick="pickProductCategory('${c.replace(/'/g,"\\'")}')">${c}</button>`
+      `<button type="button" class="chip ${c===selectedProdCategory?'active':''}" onclick="pickProductCategory('${c.replace(/'/g,"\\'")}')">${c}</button>`
     ).join('');
   }
   function pickProductCategory(c){
     selectedProdCategory = c;
-    renderProductCategoryChips();
+    renderProdCategoryChips();
   }
 function saveProduct(){
   const name = document.getElementById('prodName').value.trim();
