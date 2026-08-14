@@ -580,8 +580,8 @@ const firebaseConfig = {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     firebaseReady = true;
-    loadProductsFromFirestore();
-    listenForProducts();
+ loadProductsFromFirestore();
+  
   }catch(e){
     console.error('Firebase failed to initialize — falling back to local-only order storage.', e);
   }
