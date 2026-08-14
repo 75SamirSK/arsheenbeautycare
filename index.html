@@ -553,7 +553,11 @@
 
   </div>
 </div>
-
+<script>
+  let CATEGORIES = JSON.parse(localStorage.getItem('arsheen_categories')) || [
+    "Skin Care", "Cosmetics", "Perfumes", "Handbags", "Jewellery", "Hair Tools"
+  ];
+</script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
@@ -1306,17 +1310,21 @@ function switchAdminTab(tab){
     input.value = '';
     renderProdImgThumbStrip();
   }
-  let selectedProdCategory = "";
-  function renderProdCategoryChips(){
-    const wrap = document.getElementById('prodCatChips');
-    wrap.innerHTML = CATEGORIES.map(c =>
-      `<button type="button" class="chip ${c===selectedProdCategory?'active':''}" onclick="pickProductCategory('${c.replace(/'/g,"\\'")}')">${c}</button>`
-    ).join('');
-  }
-  function pickProductCategory(c){
-    selectedProdCategory = c;
-    renderProdCategoryChips();
-  }
+let selectedProdCategory = "";
+  
+function renderProdCategoryChips(){
+  const wrap = document.getElementById('prodCatChips');
+  if(!wrap) return;
+
+  const defaultCats = ["Skin Care", "Cosmetics", "Perfumes", "Handbags", "Jewellery", "Hair Tools"];
+  const list = (typeof CATEGORIES !== 'undefined' && CATEGORIES && CATEGORIES.length > 0) 
+    ? CATEGORIES 
+    : defaultCats;
+
+  wrap.innerHTML = list.map(c => 
+    `<button type="button" class="chip ${c === selectedProdCategory ? 'active' : ''}" onclick="pickProductCategory('${c.replace(/'/g, "\\'")}')">${c}</button>`
+  ).join('');
+}
 function saveProduct(){
   const name = document.getElementById('prodName').value.trim();
   const price = parseFloat(document.getElementById('prodPrice').value);
