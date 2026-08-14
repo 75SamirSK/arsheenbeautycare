@@ -102,6 +102,13 @@
   .card-body{padding:12px 12px 14px;display:flex;flex-direction:column;gap:6px;flex:1;}
   .card-body h3{font-size:16px;margin:0;color:var(--ink);line-height:1.25;}
   .card-price{color:var(--rose-deep);font-weight:600;font-size:15px;font-family:'Jost',sans-serif;}
+  .mrp-strike{color:#a99;font-weight:400;font-size:12.5px;text-decoration:line-through;margin-right:6px;}
+  .pd-mrp-strike{color:#a99;font-weight:500;font-size:15px;text-decoration:line-through;margin-right:8px;}
+  .card-img{position:relative;overflow:hidden;}
+  .card-img img{transition:opacity .35s ease;}
+  .card-dots{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:center;gap:4px;}
+  .card-dots span{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.6);}
+  .card-dots span.active{background:#fff;}
   .add-btn{margin-top:auto;background:var(--rose-deep);color:#fff;padding:10px;border-radius:9px;font-size:13px;letter-spacing:.03em;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .15s ease, background .2s;}
   .add-btn:active{transform:scale(0.96);}
   .add-btn.added{background:var(--gold);}
@@ -273,7 +280,8 @@
   <p>Near Meraj Masjid Road, Opp. Madina Garments &amp; Hosiery</p>
   <p>Borabanda, Hyderabad – 500018, Telangana, India</p>
   <p>WhatsApp: <a id="footWaLink" href="https://wa.me/919963618877" target="_blank" rel="noopener">+91 99636 18877</a></p>
-  <div class="foot-links"><a href="#" id="myAccountLink" onclick="openMyAccountEntry();return false;">My Account</a> &nbsp;·&nbsp; <a href="#" onclick="openTrackSheet();return false;">Track your order</a> &nbsp;·&nbsp; <a href="#" onclick="openAdminLogin();return false;" class="admin-link">Shop owner dashboard</a></div>
+  <div class="foot-links"><a href="#" id="myAccountLink" onclick="openMyAccountEntry();return false;">My Account</a> &nbsp;·&nbsp; <a href="#" onclick="openTrackSheet();return false;">Track your order</a></div>
+  <p style="margin-top:10px;font-size:10.5px;opacity:.35;letter-spacing:.05em;cursor:default;" id="secretAdminTrigger" onclick="handleSecretAdminTap()">Arsheen Beauty Care © 2025</p>
 </footer>
 
 <div class="fab-stack">
@@ -471,7 +479,8 @@
           </div>
         </div>
         <div class="field"><label for="prodName">Product Name *</label><input type="text" id="prodName" placeholder="e.g. Rose Glow Vitamin C Serum"></div>
-        <div class="field"><label for="prodPrice">Price (₹) *</label><input type="number" id="prodPrice" min="0" placeholder="e.g. 499"></div>
+        <div class="field"><label for="prodMrp">Actual MRP (₹) — optional, shown crossed out</label><input type="number" id="prodMrp" min="0" placeholder="e.g. 699"></div>
+        <div class="field"><label for="prodPrice">Your Selling Price (₹) *</label><input type="number" id="prodPrice" min="0" placeholder="e.g. 499"></div>
         <div class="field"><label for="prodWeight">Weight (grams) — used to calculate shipping</label><input type="number" id="prodWeight" min="1" placeholder="e.g. 250"></div>
         <div class="field"><label for="prodDesc">Description — shown when a customer taps the product</label><textarea id="prodDesc" rows="4" placeholder="What it is, what it's good for, why customers will love it..."></textarea></div>
         <div class="field"><label>Category *</label><div class="tag-select" id="prodCatChips"></div></div>
@@ -719,22 +728,50 @@
       return;
     }
 
-    grid.innerHTML = list.map(p => `
+    grid.innerHTML = list.map(p => {
+      const imgs = (p.images && p.images.length) ? p.images : [p.img];
+      const dotsHtml = imgs.length > 1 ? `<div class="card-dots">${imgs.map((_,i)=>`<span class="${i===0?'active':''}"></span>`).join('')}</div>` : '';
+      const priceHtml = (p.mrp && p.mrp > p.price)
+        ? `<span class="mrp-strike">₹${p.mrp}</span>₹${p.price}`
+        : `₹${p.price}`;
+      return `
       <div class="card" onclick="openProductDetail(${p.id})">
-        <div class="card-img">
+        <div class="card-img" data-slider="${p.id}" data-idx="0">
           <span class="card-cat">${p.category}</span>
-          <img src="${p.img}" alt="${p.name}" loading="lazy" onerror="this.style.display='none'">
+          <img src="${imgs[0]}" alt="${p.name}" loading="lazy" onerror="this.style.display='none'">
+          ${dotsHtml}
         </div>
         <div class="card-body">
           <h3>${p.name}</h3>
-          <div class="card-price">₹${p.price}</div>
+          <div class="card-price">${priceHtml}</div>
           <button class="add-btn" id="addbtn-${p.id}" onclick="event.stopPropagation();addToCart(${p.id})">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             Add to Cart
           </button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
+    startCardImageSlider(list);
+  }
+
+  let cardSliderTimer = null;
+  function startCardImageSlider(list){
+    if(cardSliderTimer) clearInterval(cardSliderTimer);
+    const productImages = {};
+    list.forEach(p => { productImages[p.id] = (p.images && p.images.length) ? p.images : [p.img]; });
+    cardSliderTimer = setInterval(() => {
+      document.querySelectorAll('[data-slider]').forEach(el => {
+        const id = el.getAttribute('data-slider');
+        const imgs = productImages[id];
+        if(!imgs || imgs.length < 2) return;
+        let idx = (parseInt(el.getAttribute('data-idx'), 10) + 1) % imgs.length;
+        el.setAttribute('data-idx', idx);
+        const imgEl = el.querySelector('img');
+        if(imgEl){ imgEl.style.opacity = 0; setTimeout(()=>{ imgEl.src = imgs[idx]; imgEl.style.opacity = 1; }, 180); }
+        el.querySelectorAll('.card-dots span').forEach((d,i)=>d.classList.toggle('active', i===idx));
+      });
+    }, 2800);
   }
 
   function openProductDetail(id){
@@ -753,7 +790,7 @@
       <div style="text-align:center;">
         <span class="pd-cat">${p.category}</span>
         <h3 class="pd-title">${p.name}</h3>
-        <div class="pd-price">₹${p.price}</div>
+        <div class="pd-price">${(p.mrp && p.mrp > p.price) ? `<span class="pd-mrp-strike">₹${p.mrp}</span>₹${p.price}` : `₹${p.price}`}</div>
         <div class="pd-weight">Approx. weight: ${weightLabel}</div>
         <div class="pd-desc-label">Description</div>
         <p class="pd-desc">${p.description || 'No description added yet for this product.'}</p>
@@ -1178,6 +1215,17 @@ GRAND TOTAL: ₹${total}`;
   }
 
   // ---------------- ADMIN LOGIN ----------------
+  let secretTapCount = 0, secretTapTimer = null;
+  function handleSecretAdminTap(){
+    secretTapCount++;
+    if(secretTapTimer) clearTimeout(secretTapTimer);
+    secretTapTimer = setTimeout(()=>{ secretTapCount = 0; }, 2500);
+    if(secretTapCount >= 5){
+      secretTapCount = 0;
+      clearTimeout(secretTapTimer);
+      openAdminLogin();
+    }
+  }
   function openAdminLogin(){
     openSheet('adminLoginSheet');
     document.getElementById('adminPass').value = '';
@@ -1268,11 +1316,14 @@ GRAND TOTAL: ₹${total}`;
   function saveProduct(){
     const name = document.getElementById('prodName').value.trim();
     const price = parseFloat(document.getElementById('prodPrice').value);
+    const mrpRaw = document.getElementById('prodMrp').value;
+    const mrp = mrpRaw ? parseFloat(mrpRaw) : null;
     const weight = parseFloat(document.getElementById('prodWeight').value) || 250;
     const description = document.getElementById('prodDesc').value.trim();
     const editId = document.getElementById('prodEditId').value;
     if(!name){ showToast("Enter a product name"); return; }
     if(!price || price<=0){ showToast("Enter a valid price"); return; }
+    if(mrp && mrp < price){ showToast("MRP should be higher than or equal to the selling price"); return; }
     if(!selectedProdCategory){ showToast("Pick a category"); return; }
     const images = pendingImages.length ? pendingImages.slice(0,8)
       : (editId ? (PRODUCTS.find(p=>p.id==editId)?.images || []) : []);
@@ -1280,11 +1331,11 @@ GRAND TOTAL: ₹${total}`;
 
     if(editId){
       const p = PRODUCTS.find(p=>p.id==editId);
-      if(p){ p.name=name; p.price=price; p.category=selectedProdCategory; p.img=img; p.images=images; p.weight=weight; p.description=description; }
+      if(p){ p.name=name; p.price=price; p.mrp=mrp; p.category=selectedProdCategory; p.img=img; p.images=images; p.weight=weight; p.description=description; }
       showToast("Product updated");
     } else {
       const newId = PRODUCTS.length ? Math.max(...PRODUCTS.map(p=>p.id))+1 : 1;
-      PRODUCTS.push({ id:newId, name, price, category:selectedProdCategory, img, images, weight, description });
+      PRODUCTS.push({ id:newId, name, price, mrp, category:selectedProdCategory, img, images, weight, description });
       showToast("Product added");
     }
     persistProducts();
@@ -1299,6 +1350,7 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('prodEditId').value = p.id;
     document.getElementById('prodName').value = p.name;
     document.getElementById('prodPrice').value = p.price;
+    document.getElementById('prodMrp').value = p.mrp || '';
     document.getElementById('prodWeight').value = p.weight || 250;
     document.getElementById('prodDesc').value = p.description || '';
     selectedProdCategory = p.category;
@@ -1324,6 +1376,7 @@ GRAND TOTAL: ₹${total}`;
     document.getElementById('prodEditId').value = '';
     document.getElementById('prodName').value = '';
     document.getElementById('prodPrice').value = '';
+    document.getElementById('prodMrp').value = '';
     document.getElementById('prodWeight').value = '';
     document.getElementById('prodDesc').value = '';
     document.getElementById('prodImgUrl').value = '';
