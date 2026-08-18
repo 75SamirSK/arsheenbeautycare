@@ -1245,7 +1245,7 @@ GRAND TOTAL: ₹${total}`;
     document.body.style.overflow = 'hidden';
     switchAdminTab('overview');
     fillSettingsForm();
-    renderProdCategoryChips();
+    renderProductCategoryChips();
     renderAdminProductList();
     renderCategoryList();
     startLiveOrdersListener();
@@ -1260,7 +1260,7 @@ function switchAdminTab(tab){
   document.querySelectorAll('.admin-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab==tab));
   document.querySelectorAll('.admin-pane').forEach(p=>p.classList.toggle('active', p.id=='tab-'+tab));
   if(tab==='overview') renderOverviewStats();
-  if(tab==='products') renderProdCategoryChips();
+  if(tab==='products') renderProductCategoryChips();
 }
   function renderOverviewStats(){
     document.getElementById('statProducts').textContent = PRODUCTS.length;
@@ -1306,7 +1306,7 @@ function switchAdminTab(tab){
   }
 let selectedProdCategory = "";
   
-function renderProdCategoryChips(){
+function renderProductCategoryChips(){
   const wrap = document.getElementById('prodCatChips');
   if(!wrap) return;
 
@@ -1318,6 +1318,10 @@ function renderProdCategoryChips(){
   wrap.innerHTML = list.map(c => 
     `<button type="button" class="chip ${c === selectedProdCategory ? 'active' : ''}" onclick="pickProductCategory('${c.replace(/'/g, "\\'")}')">${c}</button>`
   ).join('');
+}
+function pickProductCategory(cat){
+  selectedProdCategory = cat;
+  renderProductCategoryChips();
 }
 function saveProduct(){
   const name = document.getElementById('prodName').value.trim();
