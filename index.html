@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -553,11 +554,6 @@
 
   </div>
 </div>
-<script>
-  let CATEGORIES = JSON.parse(localStorage.getItem('arsheen_categories')) || [
-    "Skin Care", "Cosmetics", "Perfumes", "Handbags", "Jewellery", "Hair Tools"
-  ];
-</script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
@@ -584,8 +580,6 @@ const firebaseConfig = {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     firebaseReady = true;
- loadProductsFromFirestore();
-  
   }catch(e){
     console.error('Firebase failed to initialize — falling back to local-only order storage.', e);
   }
@@ -1355,44 +1349,19 @@ function saveProduct(){
     updatedAt: new Date().toISOString()
   };
 
-  if (firebaseReady && db) {
-    if (editId) {
-      db.collection("products").doc(String(editId)).set(productData, { merge: true })
-        .then(() => showToast("Product updated in cloud!"))
-        .catch(e => console.error("Firestore update error:", e));
-    } else {
-      db.collection("products").add(productData)
-        .then(() => showToast("Product added live to cloud!"))
-        .catch(e => console.error("Firestore add error:", e));
-    }
+  if (editId) {
+    const p = PRODUCTS.find(p => p.id == editId);
+    if (p) Object.assign(p, productData);
   } else {
-    if (editId) {
-      const p = PRODUCTS.find(p => p.id == editId);
-      if (p) Object.assign(p, productData);
-    } else {
-      const newId = PRODUCTS.length ? Math.max(...PRODUCTS.map(p => p.id)) + 1 : 1;
-      PRODUCTS.push({ id: newId, ...productData });
-    }
-    persistProducts();
-    showToast("Product saved locally");
+    const newId = PRODUCTS.length ? Math.max(...PRODUCTS.map(p => p.id)) + 1 : 1;
+    PRODUCTS.push({ id: newId, ...productData });
   }
+  persistProducts();
+  renderAdminProductList(); renderOverviewStats(); renderFilters(); renderProducts();
+  showToast(firebaseReady ? "Product saved & synced live!" : "Product saved locally");
 
   resetProductForm();
 }
-
-function loadProductsFromFirestore() {
-  if (firebaseReady && db) {
-    db.collection("products").onSnapshot((snapshot) => {
-      if (!snapshot.empty) {
-        PRODUCTS = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        renderProducts();
-      }
-    });
-  }
-}    
  function editProduct(id){
     const p = PRODUCTS.find(p=>p.id==id);
     if(!p) return;
