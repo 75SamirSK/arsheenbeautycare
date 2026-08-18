@@ -785,8 +785,10 @@ const firebaseConfig = {
       <div class="pd-gallery-thumbs" id="pdThumbs">
         ${images.map((src,i)=>`<img src="${src}" class="${i===0?'active':''}" onclick="switchProductImage(${i})" onerror="this.style.display='none'">`).join('')}
       </div>` : '';
+    pdCurrentImages = images;
+    pdCurrentIndex = 0;
     wrap.innerHTML = `
-      <div class="pd-gallery-main"><img id="pdMainImg" src="${images[0]}" alt="${p.name}" onerror="this.style.display='none'"></div>
+      <div class="pd-gallery-main" id="pdGalleryMain" ontouchstart="pdTouchStart(event)" ontouchend="pdTouchEnd(event)"><img id="pdMainImg" src="${images[0]}" alt="${p.name}" onerror="this.style.display='none'"></div>
       ${thumbsHtml}
       <div style="text-align:center;">
         <span class="pd-cat">${p.category}</span>
@@ -805,6 +807,31 @@ const firebaseConfig = {
     if(!src) return;
     document.getElementById('pdMainImg').src = src;
     thumbs.forEach((t,idx)=>t.classList.toggle('active', idx===i));
+    pdCurrentIndex = i;
+  }
+
+  // ---------------- PRODUCT DETAIL: SWIPE GALLERY (touch) ----------------
+  let pdCurrentImages = [];
+  let pdCurrentIndex = 0;
+  let pdTouchStartX = null;
+  let pdTouchStartY = null;
+  function pdTouchStart(e){
+    pdTouchStartX = e.changedTouches[0].clientX;
+    pdTouchStartY = e.changedTouches[0].clientY;
+  }
+  function pdTouchEnd(e){
+    if(pdTouchStartX===null) return;
+    const dx = e.changedTouches[0].clientX - pdTouchStartX;
+    const dy = e.changedTouches[0].clientY - pdTouchStartY;
+    pdTouchStartX = null; pdTouchStartY = null;
+    if(Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return; // ignore small or mostly-vertical swipes
+    if(!pdCurrentImages || pdCurrentImages.length < 2) return;
+    if(dx < 0){
+      pdCurrentIndex = (pdCurrentIndex + 1) % pdCurrentImages.length;
+    } else {
+      pdCurrentIndex = (pdCurrentIndex - 1 + pdCurrentImages.length) % pdCurrentImages.length;
+    }
+    switchProductImage(pdCurrentIndex);
   }
 
   function addToCart(id){
