@@ -727,8 +727,12 @@ const firebaseConfig = {
     const grid = document.getElementById('productGrid');
     const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
     let list;
-    list = PRODUCTS.filter(p => activeCategory==="All" || p.category===activeCategory);
-    if(q) list = list.filter(p => p.name.toLowerCase().includes(q));
+    if(q){
+      // search always looks across the WHOLE store, regardless of which category is selected
+      list = PRODUCTS.filter(p => p.name.toLowerCase().includes(q));
+    } else {
+      list = PRODUCTS.filter(p => activeCategory==="All" || p.category===activeCategory);
+    }
 
     if(list.length===0){
       grid.innerHTML = `<p class="empty-note" style="grid-column:1/-1;">No products found. Try a different search or category.</p>`;
