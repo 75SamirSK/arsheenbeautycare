@@ -124,6 +124,12 @@
   .overlay{position:fixed;inset:0;background:rgba(58,42,46,0.45);z-index:60;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px);}
   @media(min-width:640px){.overlay{align-items:center;}}
   .overlay.open{display:flex;}
+  .search-bar-inline{max-width:900px;margin:0 auto;padding:0 18px;max-height:0;overflow:hidden;transition:max-height .25s ease, padding .25s ease;background:var(--ivory);}
+  .search-bar-inline.open{max-height:80px;padding:12px 18px;}
+  .search-bar-inline .search-row{display:flex;align-items:center;gap:10px;background:var(--white);border:1.5px solid var(--rose);border-radius:12px;padding:6px 6px 6px 14px;}
+  .search-bar-inline .search-row svg{flex-shrink:0;color:var(--rose-deep);width:18px;height:18px;}
+  .search-bar-inline input{flex:1;border:none;background:transparent;font-family:'Jost',sans-serif;font-size:15px;color:var(--ink);padding:8px 0;outline:none;}
+  .search-bar-inline .search-close{flex-shrink:0;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--rose-deep);}
   .sheet{background:var(--ivory);width:100%;max-width:480px;max-height:88vh;overflow-y:auto;border-radius:20px 20px 0 0;padding:20px 18px 26px;animation:slideUp .28s ease;}
   @media(min-width:640px){.sheet{border-radius:18px;}}
   .sheet.wide{max-width:760px;}
@@ -251,12 +257,20 @@
       <button class="icon-btn" id="headerAccountBtn" onclick="openMyAccountEntry()" aria-label="My Account">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </button>
-      <button class="icon-btn" onclick="openSheet('searchSheet')" aria-label="Search">
+      <button class="icon-btn" onclick="toggleSearchBar()" aria-label="Search">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
     </div>
   </div>
 </header>
+
+<div class="search-bar-inline" id="searchBarInline">
+  <div class="search-row">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="searchInput" placeholder="Search products by name..." oninput="renderProducts()">
+    <button type="button" class="search-close" onclick="closeSearchBar()" aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+</div>
 
 <div class="delivery-banner">
   <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
@@ -382,14 +396,6 @@
   </div>
 </div>
 
-<!-- SEARCH SHEET -->
-<div class="overlay" id="searchSheet">
-  <div class="sheet">
-    <div class="sheet-head"><h2>Search Products</h2><button class="close-x" onclick="closeSheet('searchSheet')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="field"><input type="text" id="searchInput" placeholder="Search e.g. lipstick, handbag, perfume..." oninput="renderProducts()"></div>
-    <p class="empty-note">Type to filter products, then close this to browse the grid.</p>
-  </div>
-</div>
 
 <!-- TRACK ORDER SHEET -->
 <div class="overlay" id="trackSheet">
@@ -720,8 +726,13 @@ const firebaseConfig = {
   function renderProducts(){
     const grid = document.getElementById('productGrid');
     const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
-    let list = PRODUCTS.filter(p => activeCategory==="All" || p.category===activeCategory);
-    if(q) list = list.filter(p => p.name.toLowerCase().includes(q));
+    let list;
+    if(q){
+      // searching looks across ALL products, regardless of the active category tab
+      list = PRODUCTS.filter(p => p.name.toLowerCase().includes(q));
+    } else {
+      list = PRODUCTS.filter(p => activeCategory==="All" || p.category===activeCategory);
+    }
 
     if(list.length===0){
       grid.innerHTML = `<p class="empty-note" style="grid-column:1/-1;">No products found. Try a different search or category.</p>`;
@@ -1679,6 +1690,22 @@ function startCatalogListener(){
   function closeSheet(id){
     document.getElementById(id).classList.remove('open');
     document.body.style.overflow = '';
+  }
+  function toggleSearchBar(){
+    const bar = document.getElementById('searchBarInline');
+    const opening = !bar.classList.contains('open');
+    bar.classList.toggle('open');
+    if(opening){
+      setTimeout(()=>document.getElementById('searchInput').focus(), 260);
+    } else {
+      closeSearchBar();
+    }
+  }
+  function closeSearchBar(){
+    const bar = document.getElementById('searchBarInline');
+    bar.classList.remove('open');
+    const input = document.getElementById('searchInput');
+    if(input.value){ input.value=''; renderProducts(); }
   }
   document.querySelectorAll('.overlay').forEach(ov=>{
     ov.addEventListener('click', e=>{ if(e.target===ov) closeSheet(ov.id); });
