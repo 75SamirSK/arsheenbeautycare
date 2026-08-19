@@ -727,12 +727,8 @@ const firebaseConfig = {
     const grid = document.getElementById('productGrid');
     const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
     let list;
-    if(q){
-      // searching looks across ALL products, regardless of the active category tab
-      list = PRODUCTS.filter(p => p.name.toLowerCase().includes(q));
-    } else {
-      list = PRODUCTS.filter(p => activeCategory==="All" || p.category===activeCategory);
-    }
+    list = PRODUCTS.filter(p => activeCategory==="All" || p.category===activeCategory);
+    if(q) list = list.filter(p => p.name.toLowerCase().includes(q));
 
     if(list.length===0){
       grid.innerHTML = `<p class="empty-note" style="grid-column:1/-1;">No products found. Try a different search or category.</p>`;
