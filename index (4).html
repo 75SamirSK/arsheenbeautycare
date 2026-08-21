@@ -104,10 +104,6 @@
   .card-price{color:var(--rose-deep);font-weight:600;font-size:15px;font-family:'Jost',sans-serif;}
   .mrp-strike{color:#a99;font-weight:400;font-size:12.5px;text-decoration:line-through;margin-right:6px;}
   .pd-mrp-strike{color:#a99;font-weight:500;font-size:15px;text-decoration:line-through;margin-right:8px;}
-  .discount-badge{display:inline-block;background:#388e3c;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle;}
-  .grid-section-title{grid-column:1/-1;font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:var(--rose-deep);margin:18px 0 2px;padding-bottom:6px;border-bottom:1.5px solid var(--blush);}
-  .grid-section-title:first-child{margin-top:0;}
-  .grid-subsection-title{grid-column:1/-1;font-family:'Jost',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin:6px 0 -2px;}
   .card-img{position:relative;overflow:hidden;}
   .card-img img{transition:opacity .35s ease;}
   .card-dots{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:center;gap:4px;}
@@ -494,14 +490,6 @@
         <div class="field"><label for="prodWeight">Weight (grams) — used to calculate shipping</label><input type="number" id="prodWeight" min="1" placeholder="e.g. 250"></div>
         <div class="field"><label for="prodDesc">Description — shown when a customer taps the product</label><textarea id="prodDesc" rows="4" placeholder="What it is, what it's good for, why customers will love it..."></textarea></div>
         <div class="field"><label>Category *</label><div class="tag-select" id="prodCatChips"></div></div>
-        <div class="field" id="prodSubCatField" style="display:none;">
-          <label>Sub-category — pick one or add your own</label>
-          <div class="tag-select" id="prodSubCatChips"></div>
-          <div style="display:flex;gap:8px;margin-top:8px;">
-            <input type="text" id="prodNewSubCatInput" placeholder="Add a new sub-category..." style="flex:1;">
-            <button type="button" class="secondary-btn" style="white-space:nowrap;width:auto;margin-top:0;" onclick="addNewSubCategoryFromForm()">Add</button>
-          </div>
-        </div>
         <input type="hidden" id="prodEditId" value="">
         <button class="primary-btn" onclick="saveProduct()">Save Product</button>
         <button class="secondary-btn" id="cancelEditBtn" style="display:none;" onclick="resetProductForm()">Cancel Edit</button>
@@ -640,99 +628,23 @@ const firebaseConfig = {
     "Hair Tools": "https://placehold.co/200x200/E3D6DC/5C3A46?text=Hair+Tools"
   };
 
-  // Subcategories per category. A category not listed here just has no subcategories.
-  // New ones can also be added on the fly from the admin Add Product form.
-  const DEFAULT_SUBCATEGORIES = {
-    "Cosmetics": ["Lipstick","Lip Liner","Foundation","Compact Powder / Loose Powder","Highlighter","Primer","Concealer","Lip Gloss","Eyeshadow","Mascara","Facial Kits","Blusher"],
-    "Skin Care": ["Serums","Face Wash","Creams","Sunscreen","Hair Serums","Skin Serums","Moisturizers","Scrubs","Masks","Face Sheet Masks","Shampoo","Body Wash","Toner","Conditioner","Hair Oil","Body Lotion"],
-    "Jewellery": ["Bangles","Rings","Necklaces","Bracelets","Lockets","Watches","Earrings","Mangalsutra"]
-  };
-
-  // Keyword hints used to auto-assign a subcategory to existing products that don't
-  // have one yet, based on their name — most-specific keywords are listed first.
-  const SUBCATEGORY_KEYWORDS = {
-    "Cosmetics": [
-      ["Lip Liner", ["lip liner","lipliner"]],
-      ["Lip Gloss", ["lip gloss","lipgloss"]],
-      ["Lipstick", ["lipstick"]],
-      ["Foundation", ["foundation"]],
-      ["Compact Powder / Loose Powder", ["compact powder","loose powder","compact","powder"]],
-      ["Highlighter", ["highlighter"]],
-      ["Primer", ["primer"]],
-      ["Concealer", ["concealer","conceler"]],
-      ["Eyeshadow", ["eyeshadow","eye shade","eyeshade"]],
-      ["Mascara", ["mascara"]],
-      ["Facial Kits", ["facial kit","facialkit"]],
-      ["Blusher", ["blush"]]
-    ],
-    "Skin Care": [
-      ["Face Sheet Masks", ["sheet mask"]],
-      ["Hair Serums", ["hair serum"]],
-      ["Skin Serums", ["skin serum"]],
-      ["Serums", ["serum"]],
-      ["Face Wash", ["face wash","facewash"]],
-      ["Sunscreen", ["sunscreen","suncreen","spf"]],
-      ["Moisturizers", ["moisturi"]],
-      ["Scrubs", ["scrub"]],
-      ["Masks", ["mask"]],
-      ["Shampoo", ["shampoo"]],
-      ["Body Wash", ["body wash","bodywash"]],
-      ["Toner", ["toner"]],
-      ["Conditioner", ["conditioner"]],
-      ["Hair Oil", ["hair oil"]],
-      ["Body Lotion", ["body lotion"]],
-      ["Creams", ["cream"]]
-    ],
-    "Jewellery": [
-      ["Mangalsutra", ["mangalsutra","mangalsutr"]],
-      ["Bangles", ["bangle"]],
-      ["Rings", ["ring"]],
-      ["Necklaces", ["necklace","neclace"]],
-      ["Bracelets", ["bracelet"]],
-      ["Lockets", ["locket"]],
-      ["Watches", ["watch"]],
-      ["Earrings", ["earring","jhumka","stud"]]
-    ]
-  };
-  function guessSubCategory(p){
-    const rules = SUBCATEGORY_KEYWORDS[p.category];
-    if(!rules) return null;
-    const hay = (p.name || '').toLowerCase() + ' ' + (p.description || '').toLowerCase();
-    for(const [sub, keywords] of rules){
-      if(keywords.some(k => hay.includes(k))) return sub;
-    }
-    return null;
-  }
-  // Fills in subCategory for any existing product that doesn't have one yet,
-  // by matching its name/description against the keyword table above.
-  function autoAssignSubCategories(){
-    let changed = false;
-    PRODUCTS.forEach(p => {
-      if(!p.subCategory){
-        const guess = guessSubCategory(p);
-        if(guess){ p.subCategory = guess; changed = true; }
-      }
-    });
-    if(changed) persistProducts();
-  }
-
   const DEFAULT_PRODUCTS = [
-    { id:1,  name:"Rose Glow Vitamin C Serum", price:499, category:"Skin Care", subCategory:"Serums", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum", weight:150, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum&v=3"], description:"A lightweight, fast-absorbing Vitamin C serum that brightens dull skin, fades dark spots, and evens out tone. Infused with rose extract and hyaluronic acid for extra hydration. Suitable for all skin types — use a few drops every morning before moisturiser for visibly glowing skin within weeks." },
-    { id:2,  name:"Ivory Matte Compact Powder", price:349, category:"Cosmetics", subCategory:"Compact Powder / Loose Powder", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact", weight:120, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact&v=3"], description:"A silky matte compact powder that controls shine and blurs pores for a soft-focus, natural finish. Buildable coverage that lasts all day without caking. Comes with a mirror and puff for quick touch-ups on the go." },
-    { id:3,  name:"Blush Petal Lipstick Duo", price:599, category:"Cosmetics", subCategory:"Lipstick", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick", weight:100, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick&v=3"], description:"Two creamy, richly pigmented lipstick shades in one pack — a soft everyday nude and a bold petal pink. Long-wearing, moisturising formula that won't dry out your lips. Perfect for switching up your look in seconds." },
+    { id:1,  name:"Rose Glow Vitamin C Serum", price:499, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum", weight:150, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Serum&v=3"], description:"A lightweight, fast-absorbing Vitamin C serum that brightens dull skin, fades dark spots, and evens out tone. Infused with rose extract and hyaluronic acid for extra hydration. Suitable for all skin types — use a few drops every morning before moisturiser for visibly glowing skin within weeks." },
+    { id:2,  name:"Ivory Matte Compact Powder", price:349, category:"Cosmetics", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact", weight:120, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Compact&v=3"], description:"A silky matte compact powder that controls shine and blurs pores for a soft-focus, natural finish. Buildable coverage that lasts all day without caking. Comes with a mirror and puff for quick touch-ups on the go." },
+    { id:3,  name:"Blush Petal Lipstick Duo", price:599, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick", weight:100, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Lipstick&v=3"], description:"Two creamy, richly pigmented lipstick shades in one pack — a soft everyday nude and a bold petal pink. Long-wearing, moisturising formula that won't dry out your lips. Perfect for switching up your look in seconds." },
     { id:4,  name:"Arsheen Signature Eau de Parfum", price:1299, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume", weight:250, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Perfume&v=3"], description:"Our signature fragrance — a warm, elegant blend of rose, amber and soft musk that lasts 8+ hours. Comes in a beautifully designed glass bottle, perfect for everyday wear or gifting. A scent that's romantic without being overpowering." },
     { id:5,  name:"Quilted Rose Sling Handbag", price:1899, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag", weight:600, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Handbag&v=3"], description:"A quilted sling bag in soft rose-tone faux leather with gold-tone hardware. Roomy enough for your phone, wallet and everyday essentials, with an adjustable strap for crossbody or shoulder wear. A versatile everyday accessory that pairs with both ethnic and western outfits." },
     { id:6,  name:"Ivory Tote Handbag", price:1599, category:"Handbags", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote", weight:650, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Tote&v=3"], description:"A spacious ivory tote with a structured shape, perfect for work or daily errands. Sturdy double handles, a secure zip closure, and an interior pocket to keep things organised. Neutral tone that goes with everything in your wardrobe." },
-    { id:7,  name:"1gm Gold-Polish Kundan Necklace Set", price:899, category:"Jewellery", subCategory:"Necklaces", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace", weight:80, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace&v=3"], description:"An elegant Kundan-studded necklace set with matching earrings, finished in 1gm gold polish for a rich, long-lasting shine. Ideal for festive occasions, weddings, or dressing up an everyday saree/kurti. Lightweight and comfortable for all-day wear." },
-    { id:8,  name:"1gm Gold-Polish Jhumka Earrings", price:449, category:"Jewellery", subCategory:"Earrings", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka", weight:50, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka&v=3"], description:"Classic bell-shaped jhumka earrings in 1gm gold polish with fine detailing. Lightweight enough for daily wear yet festive enough for special occasions. A timeless addition to your jewellery collection." },
-    { id:9,  name:"Almond & Honey Body Lotion", price:299, category:"Skin Care", subCategory:"Body Lotion", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion", weight:200, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion&v=3"], description:"A deeply nourishing body lotion made with almond oil and honey extract to soothe dry, rough skin. Fast-absorbing, non-greasy formula that leaves skin soft and lightly fragranced all day. Great for daily use after a shower." },
-    { id:10, name:"Rose Water Face Toner", price:199, category:"Skin Care", subCategory:"Toner", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner", weight:180, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner&v=3"], description:"Pure rose water toner that refreshes skin, tightens pores, and restores your skin's natural pH after cleansing. Alcohol-free and gentle enough for daily use, even on sensitive skin. Can also be used as a refreshing face mist throughout the day." },
+    { id:7,  name:"1gm Gold-Polish Kundan Necklace Set", price:899, category:"Jewellery", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace", weight:80, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Necklace&v=3"], description:"An elegant Kundan-studded necklace set with matching earrings, finished in 1gm gold polish for a rich, long-lasting shine. Ideal for festive occasions, weddings, or dressing up an everyday saree/kurti. Lightweight and comfortable for all-day wear." },
+    { id:8,  name:"1gm Gold-Polish Jhumka Earrings", price:449, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka", weight:50, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Jhumka&v=3"], description:"Classic bell-shaped jhumka earrings in 1gm gold polish with fine detailing. Lightweight enough for daily wear yet festive enough for special occasions. A timeless addition to your jewellery collection." },
+    { id:9,  name:"Almond & Honey Body Lotion", price:299, category:"Skin Care", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion", weight:200, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Body+Lotion&v=3"], description:"A deeply nourishing body lotion made with almond oil and honey extract to soothe dry, rough skin. Fast-absorbing, non-greasy formula that leaves skin soft and lightly fragranced all day. Great for daily use after a shower." },
+    { id:10, name:"Rose Water Face Toner", price:199, category:"Skin Care", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner", weight:180, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Toner&v=3"], description:"Pure rose water toner that refreshes skin, tightens pores, and restores your skin's natural pH after cleansing. Alcohol-free and gentle enough for daily use, even on sensitive skin. Can also be used as a refreshing face mist throughout the day." },
     { id:11, name:"Ceramic Hair Straightener", price:1099, category:"Hair Tools", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener", weight:500, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Straightener&v=3"], description:"A ceramic-coated hair straightener that glides smoothly through hair with even heat distribution, reducing frizz and damage. Adjustable temperature settings for different hair types. Heats up quickly, perfect for quick styling before you head out." },
     { id:12, name:"Professional Hair Dryer 1800W", price:1299, category:"Hair Tools", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer", weight:700, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Hair+Dryer&v=3"], description:"A powerful 1800W hair dryer with multiple heat and speed settings for salon-style blow-drying at home. Lightweight design with a cool-shot button to lock in your style. Comes with a concentrator nozzle for precise styling." },
     { id:13, name:"Kajal & Eyeliner Combo", price:249, category:"Cosmetics", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal", weight:60, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Kajal&v=3"], description:"A smudge-proof kajal and precision eyeliner combo for bold, long-lasting eye definition. Deep black pigment that glides on smoothly without tugging. Stays put through long days without smudging or fading." },
     { id:14, name:"Mini Perfume Gift Set (3x20ml)", price:799, category:"Perfumes", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set", weight:200, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Gift+Set&v=3"], description:"A set of three 20ml travel-friendly perfumes in floral, fruity and musky notes — perfect for trying different scents or gifting someone special. Comes in an elegant gift box, ready to present as-is. Great for travel too, since each bottle is under the usual liquid limit." },
     { id:15, name:"Clutch Purse — Rose Gold", price:999, category:"Handbags", img:"https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch", weight:350, images:["https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch&v=2","https://placehold.co/500x500/F1D9DD/8C4A5C?text=Clutch&v=3"], description:"A sleek rose gold clutch with a magnetic clasp, perfect for evenings out, weddings, or festive gatherings. Fits your phone, cards and essentials comfortably. Pairs beautifully with both western dresses and ethnic wear." },
-    { id:16, name:"1gm Gold-Polish Bangles Set (4pc)", price:749, category:"Jewellery", subCategory:"Bangles", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles", weight:70, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles&v=3"], description:"A set of 4 intricately designed bangles in 1gm gold polish, perfect for stacking or wearing individually. Durable polish that resists tarnishing with normal care. A versatile set that complements both traditional and modern outfits." },
+    { id:16, name:"1gm Gold-Polish Bangles Set (4pc)", price:749, category:"Jewellery", img:"https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles", weight:70, images:["https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles&v=2","https://placehold.co/500x500/F3E9DE/8C4A5C?text=Bangles&v=3"], description:"A set of 4 intricately designed bangles in 1gm gold polish, perfect for stacking or wearing individually. Durable polish that resists tarnishing with normal care. A versatile set that complements both traditional and modern outfits." },
   ];
 
   // ---------------- PERSISTED STATE ----------------
@@ -743,7 +655,6 @@ const firebaseConfig = {
   let PRODUCTS   = loadJSON('arsheen_products', null) || JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
   let CATEGORIES = loadJSON('arsheen_categories', null) || [...DEFAULT_CATEGORIES];
   let CATEGORY_IMAGES = Object.assign({}, DEFAULT_CATEGORY_IMAGES, loadJSON('arsheen_category_images', {}));
-  let SUBCATEGORIES = Object.assign({}, DEFAULT_SUBCATEGORIES, loadJSON('arsheen_subcategories', {}));
   let SETTINGS   = Object.assign({}, DEFAULT_SETTINGS, loadJSON('arsheen_settings', {}));
   let cart = loadJSON('arsheen_cart', {});
   let activeCategory = "All";
@@ -752,29 +663,6 @@ const firebaseConfig = {
   function persistProducts(){ localStorage.setItem('arsheen_products', JSON.stringify(PRODUCTS)); persistCatalogToCloud(); }
   function persistCategories(){ localStorage.setItem('arsheen_categories', JSON.stringify(CATEGORIES)); persistCatalogToCloud(); }
   function persistCategoryImages(){ localStorage.setItem('arsheen_category_images', JSON.stringify(CATEGORY_IMAGES)); persistCatalogToCloud(); }
-  function persistSubCategories(){ localStorage.setItem('arsheen_subcategories', JSON.stringify(SUBCATEGORIES)); persistCatalogToCloud(); }
-  function getSubCategories(cat){ return SUBCATEGORIES[cat] || []; }
-  function addSubCategoryIfNew(cat, sub){
-    if(!cat || !sub) return;
-    if(!SUBCATEGORIES[cat]) SUBCATEGORIES[cat] = [];
-    if(!SUBCATEGORIES[cat].some(s => s.toLowerCase() === sub.toLowerCase())){
-      SUBCATEGORIES[cat].push(sub);
-      persistSubCategories();
-    }
-  }
-  autoAssignSubCategories();
-  // Sort helper: category order (as defined in CATEGORIES), then A-Z by sub-category,
-  // then A-Z by product name — this replaces plain insertion-order (FIFO) display.
-  function sortByCategoryThenSub(list){
-    return [...list].sort((a,b) => {
-      const ci = CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category);
-      if(ci !== 0) return ci;
-      const sa = a.subCategory || '';
-      const sb = b.subCategory || '';
-      if(sa !== sb) return sa.localeCompare(sb);
-      return a.name.localeCompare(b.name);
-    });
-  }
   function persistSettings(){ localStorage.setItem('arsheen_settings', JSON.stringify(SETTINGS)); }
   function categoryImage(cat){
     return CATEGORY_IMAGES[cat] || `https://placehold.co/200x200/F1D9DD/8C4A5C?text=${encodeURIComponent(cat.charAt(0).toUpperCase())}`;
@@ -834,46 +722,13 @@ const firebaseConfig = {
   }
   function setCategory(cat){ activeCategory = cat; renderFilters(); renderProducts(); }
 
-  // Discount % badge shown beside a struck-through MRP, e.g. "20% OFF" — like Flipkart/Amazon
-  function discountBadge(p){
-    if(!(p.mrp && p.mrp > p.price)) return '';
-    const pct = Math.round(((p.mrp - p.price) / p.mrp) * 100);
-    return pct > 0 ? `<span class="discount-badge">${pct}% OFF</span>` : '';
-  }
-  function productCardHtml(p){
-    const imgs = (p.images && p.images.length) ? p.images : [p.img];
-    const dotsHtml = imgs.length > 1 ? `<div class="card-dots">${imgs.map((_,i)=>`<span class="${i===0?'active':''}"></span>`).join('')}</div>` : '';
-    const priceHtml = (p.mrp && p.mrp > p.price)
-      ? `<span class="mrp-strike">₹${p.mrp}</span>₹${p.price} ${discountBadge(p)}`
-      : `₹${p.price}`;
-    return `
-    <div class="card" onclick="openProductDetail(${p.id})">
-      <div class="card-img" data-slider="${p.id}" data-idx="0">
-        <span class="card-cat">${p.category}</span>
-        <img src="${imgs[0]}" alt="${p.name}" loading="lazy" onerror="this.style.display='none'">
-        ${dotsHtml}
-      </div>
-      <div class="card-body">
-        <h3>${p.name}</h3>
-        <div class="card-price">${priceHtml}</div>
-        <button class="add-btn" id="addbtn-${p.id}" onclick="event.stopPropagation();addToCart(${p.id})">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-          Add to Cart
-        </button>
-      </div>
-    </div>
-  `;
-  }
-
   // ---------------- STOREFRONT: PRODUCT GRID ----------------
   function renderProducts(){
     const grid = document.getElementById('productGrid');
     const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
     let list;
-    let searching = false;
     if(q){
       // search always looks across the WHOLE store, regardless of which category is selected
-      searching = true;
       list = PRODUCTS.filter(p => p.name.toLowerCase().includes(q));
     } else {
       list = PRODUCTS.filter(p => activeCategory==="All" || p.category===activeCategory);
@@ -884,28 +739,30 @@ const firebaseConfig = {
       return;
     }
 
-    // Arranged by category, then sub-category, then A-Z — not insertion order (FIFO).
-    list = sortByCategoryThenSub(list);
-
-    if(searching){
-      grid.innerHTML = list.map(productCardHtml).join('');
-    } else {
-      let html = '';
-      let lastCat = null, lastSub = null;
-      list.forEach(p => {
-        const sub = p.subCategory || '';
-        if(p.category !== lastCat){
-          html += `<h3 class="grid-section-title">${p.category}</h3>`;
-          lastCat = p.category; lastSub = null;
-        }
-        if(sub !== lastSub){
-          if(sub) html += `<h4 class="grid-subsection-title">${sub}</h4>`;
-          lastSub = sub;
-        }
-        html += productCardHtml(p);
-      });
-      grid.innerHTML = html;
-    }
+    grid.innerHTML = list.map(p => {
+      const imgs = (p.images && p.images.length) ? p.images : [p.img];
+      const dotsHtml = imgs.length > 1 ? `<div class="card-dots">${imgs.map((_,i)=>`<span class="${i===0?'active':''}"></span>`).join('')}</div>` : '';
+      const priceHtml = (p.mrp && p.mrp > p.price)
+        ? `<span class="mrp-strike">₹${p.mrp}</span>₹${p.price}`
+        : `₹${p.price}`;
+      return `
+      <div class="card" onclick="openProductDetail(${p.id})">
+        <div class="card-img" data-slider="${p.id}" data-idx="0">
+          <span class="card-cat">${p.category}</span>
+          <img src="${imgs[0]}" alt="${p.name}" loading="lazy" onerror="this.style.display='none'">
+          ${dotsHtml}
+        </div>
+        <div class="card-body">
+          <h3>${p.name}</h3>
+          <div class="card-price">${priceHtml}</div>
+          <button class="add-btn" id="addbtn-${p.id}" onclick="event.stopPropagation();addToCart(${p.id})">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            Add to Cart
+          </button>
+        </div>
+      </div>
+    `;
+    }).join('');
     startCardImageSlider(list);
   }
 
@@ -946,7 +803,7 @@ const firebaseConfig = {
       <div style="text-align:center;">
         <span class="pd-cat">${p.category}</span>
         <h3 class="pd-title">${p.name}</h3>
-        <div class="pd-price">${(p.mrp && p.mrp > p.price) ? `<span class="pd-mrp-strike">₹${p.mrp}</span>₹${p.price} ${discountBadge(p)}` : `₹${p.price}`}</div>
+        <div class="pd-price">${(p.mrp && p.mrp > p.price) ? `<span class="pd-mrp-strike">₹${p.mrp}</span>₹${p.price}` : `₹${p.price}`}</div>
         <div class="pd-weight">Approx. weight: ${weightLabel}</div>
         <div class="pd-desc-label">Description</div>
         <p class="pd-desc">${p.description || 'No description added yet for this product.'}</p>
@@ -1485,7 +1342,6 @@ function switchAdminTab(tab){
     renderProdImgThumbStrip();
   }
 let selectedProdCategory = "";
-  let selectedProdSubCategory = "";
   
 function renderProductCategoryChips(){
   const wrap = document.getElementById('prodCatChips');
@@ -1499,38 +1355,10 @@ function renderProductCategoryChips(){
   wrap.innerHTML = list.map(c => 
     `<button type="button" class="chip ${c === selectedProdCategory ? 'active' : ''}" onclick="pickProductCategory('${c.replace(/'/g, "\\'")}')">${c}</button>`
   ).join('');
-  renderProductSubCategoryChips();
 }
 function pickProductCategory(cat){
   selectedProdCategory = cat;
-  selectedProdSubCategory = "";
   renderProductCategoryChips();
-  renderProductSubCategoryChips();
-}
-function renderProductSubCategoryChips(){
-  const field = document.getElementById('prodSubCatField');
-  const wrap = document.getElementById('prodSubCatChips');
-  if(!wrap || !field) return;
-  if(!selectedProdCategory){ field.style.display = 'none'; return; }
-  field.style.display = 'block';
-  const subs = getSubCategories(selectedProdCategory);
-  wrap.innerHTML = subs.map(s =>
-    `<button type="button" class="chip ${s === selectedProdSubCategory ? 'active' : ''}" onclick="pickProductSubCategory('${s.replace(/'/g,"\\'")}')">${s}</button>`
-  ).join('') + (subs.length ? '' : `<span class="hint">No sub-categories yet for this category — add one below.</span>`);
-}
-function pickProductSubCategory(sub){
-  selectedProdSubCategory = (sub === selectedProdSubCategory) ? "" : sub;
-  renderProductSubCategoryChips();
-}
-function addNewSubCategoryFromForm(){
-  const input = document.getElementById('prodNewSubCatInput');
-  const val = input.value.trim();
-  if(!val){ showToast("Type a sub-category name first"); return; }
-  if(!selectedProdCategory){ showToast("Pick a category first"); return; }
-  addSubCategoryIfNew(selectedProdCategory, val);
-  selectedProdSubCategory = val;
-  input.value = '';
-  renderProductSubCategoryChips();
 }
 function saveProduct(){
   const name = document.getElementById('prodName').value.trim();
@@ -1555,7 +1383,6 @@ function saveProduct(){
     price,
     mrp,
     category: selectedProdCategory,
-    subCategory: selectedProdSubCategory || null,
     img,
     images,
     weight,
@@ -1586,9 +1413,7 @@ function saveProduct(){
     document.getElementById('prodWeight').value = p.weight || 250;
     document.getElementById('prodDesc').value = p.description || '';
     selectedProdCategory = p.category;
-    selectedProdSubCategory = p.subCategory || "";
     renderProductCategoryChips();
-    renderProductSubCategoryChips();
     pendingImages = (p.images && p.images.length) ? [...p.images] : (p.img ? [p.img] : []);
     renderProdImgThumbStrip();
     document.getElementById('prodImgUrl').value = '';
@@ -1618,9 +1443,7 @@ function saveProduct(){
     pendingImages = [];
     renderProdImgThumbStrip();
     selectedProdCategory = "";
-    selectedProdSubCategory = "";
     renderProductCategoryChips();
-    renderProductSubCategoryChips();
     document.getElementById('prodFormTitle').textContent = "Add a Product";
     document.getElementById('cancelEditBtn').style.display = 'none';
   }
@@ -1629,12 +1452,10 @@ function saveProduct(){
     const q = (document.getElementById('adminProdSearch')?.value || '').toLowerCase();
     let list = PRODUCTS.filter(p => p.name.toLowerCase().includes(q));
     if(list.length===0){ wrap.innerHTML = `<p class="empty-note">No products yet. Add your first one above.</p>`; return; }
-    // arranged by category -> sub-category -> A-Z name, not insertion order (FIFO)
-    list = sortByCategoryThenSub(list);
     wrap.innerHTML = list.map(p => `
       <div class="prod-row">
         <img src="${p.img}" alt="${p.name}" onerror="this.style.display='none'">
-        <div class="pr-info"><strong>${p.name}</strong><span>${p.category}${p.subCategory ? ' · '+p.subCategory : ''} · ₹${p.price}</span></div>
+        <div class="pr-info"><strong>${p.name}</strong><span>${p.category} · ₹${p.price}</span></div>
         <div class="pr-actions">
           <button class="mini-btn" onclick="editProduct(${p.id})">Edit</button>
           <button class="mini-btn danger" onclick="deleteProduct(${p.id})">Delete</button>
@@ -1708,7 +1529,7 @@ let applyingRemoteCatalog = false;
 
 function persistCatalogToCloud(){
   if(!firebaseReady || !db || applyingRemoteCatalog) return;
-  const payload = { products: PRODUCTS, categories: CATEGORIES, categoryImages: CATEGORY_IMAGES, subCategories: SUBCATEGORIES };
+  const payload = { products: PRODUCTS, categories: CATEGORIES, categoryImages: CATEGORY_IMAGES };
   const approxSize = new Blob([JSON.stringify(payload)]).size;
   if(approxSize > 900000){
     console.error('Catalog too large to sync to cloud:', approxSize, 'bytes');
@@ -1719,7 +1540,6 @@ function persistCatalogToCloud(){
     products: PRODUCTS,
     categories: CATEGORIES,
     categoryImages: CATEGORY_IMAGES,
-    subCategories: SUBCATEGORIES,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err => {
     console.error('Cloud catalog save failed (this device still has a local copy):', err);
@@ -1740,16 +1560,13 @@ function startCatalogListener(){
     if(Array.isArray(data.products)) PRODUCTS = data.products;
     if(Array.isArray(data.categories)) CATEGORIES = data.categories;
     if(data.categoryImages) CATEGORY_IMAGES = data.categoryImages;
-    if(data.subCategories) SUBCATEGORIES = Object.assign({}, DEFAULT_SUBCATEGORIES, data.subCategories);
-    persistProducts(); persistCategories(); persistCategoryImages(); persistSubCategories();
+    persistProducts(); persistCategories(); persistCategoryImages();
     applyingRemoteCatalog = false;
-    // fill in sub-categories for any product the cloud copy is still missing one for
-    autoAssignSubCategories();
 
     renderFilters(); renderProducts();
     const dash = document.getElementById('adminDashboard');
     if(dash && dash.classList.contains('open')){
-      renderAdminProductList(); renderCategoryList(); renderProductCategoryChips(); renderProductSubCategoryChips(); renderOverviewStats();
+      renderAdminProductList(); renderCategoryList(); renderProductCategoryChips(); renderOverviewStats();
     }
   }, err => console.error('Catalog live sync failed — showing local copy on this device:', err));
 }
