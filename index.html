@@ -750,7 +750,7 @@ const firebaseConfig = {
   let activeCategory = "All";
   let selectedPayMethod = "cod";
 
-  function persistProducts(){ localStorage.setItem('arsheen_products', JSON.stringify(PRODUCTS)); persistCatalogToCloud(); }
+  function persistProducts(){ localStorage.setItem('arsheen_products', JSON.stringify(PRODUCTS)); persistProductsToCloud(); }
   function persistCategories(){ localStorage.setItem('arsheen_categories', JSON.stringify(CATEGORIES)); persistCatalogToCloud(); }
   function persistCategoryImages(){ localStorage.setItem('arsheen_category_images', JSON.stringify(CATEGORY_IMAGES)); persistCatalogToCloud(); }
   function persistSubCategories(){ localStorage.setItem('arsheen_subcategories', JSON.stringify(SUBCATEGORIES)); persistCatalogToCloud(); }
@@ -1704,26 +1704,53 @@ function saveProduct(){
   let liveOrders = [];
   let ordersUnsubscribe = null;
   // ---------------- LIVE CATALOG SYNC (products + categories) ----------------
+  // Products are stored as ONE FIRESTORE DOCUMENT PER PRODUCT (store/catalog/products/<id>)
+  // instead of one big array crammed into a single document. This removes the old
+  // ~900KB "catalog too large to sync" ceiling — each product only has to fit under
+  // Firestore's normal 1MB *per-document* limit, which a single product will never
+  // come close to, no matter how many photos are uploaded or how many products you add.
+  // Categories / sub-categories / category images stay in the small metadata document
+  // since together they're tiny and never at risk of hitting any size limit.
 let catalogUnsubscribe = null;
+let productsUnsubscribe = null;
 let applyingRemoteCatalog = false;
+let knownCloudProductIds = new Set();
 
 function persistCatalogToCloud(){
   if(!firebaseReady || !db || applyingRemoteCatalog) return;
-  const payload = { products: PRODUCTS, categories: CATEGORIES, categoryImages: CATEGORY_IMAGES, subCategories: SUBCATEGORIES };
-  const approxSize = new Blob([JSON.stringify(payload)]).size;
-  if(approxSize > 900000){
-    console.error('Catalog too large to sync to cloud:', approxSize, 'bytes');
-    if(typeof showToast === 'function') showToast("⚠️ Too many uploaded photos — this product saved only on THIS device. Use image links (e.g. imgbb.com) instead of uploading photos, then re-save.");
-    return;
-  }
   db.collection('store').doc('catalog').set({
-    products: PRODUCTS,
     categories: CATEGORIES,
     categoryImages: CATEGORY_IMAGES,
     subCategories: SUBCATEGORIES,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(err => {
+  }, { merge: true }).catch(err => {
     console.error('Cloud catalog save failed (this device still has a local copy):', err);
+    if(typeof showToast === 'function') showToast("⚠️ Cloud sync failed — this change saved only on THIS device, not visible to customers yet.");
+  });
+}
+
+function productsCollectionRef(){
+  return db.collection('store').doc('catalog').collection('products');
+}
+
+function persistProductsToCloud(){
+  if(!firebaseReady || !db || applyingRemoteCatalog) return;
+  const col = productsCollectionRef();
+  const batch = db.batch();
+  const currentIds = new Set();
+  PRODUCTS.forEach(p => {
+    const id = String(p.id);
+    currentIds.add(id);
+    batch.set(col.doc(id), p);
+  });
+  // remove any product from the cloud that no longer exists locally (was deleted)
+  knownCloudProductIds.forEach(id => {
+    if(!currentIds.has(id)) batch.delete(col.doc(id));
+  });
+  batch.commit().then(() => {
+    knownCloudProductIds = currentIds;
+  }).catch(err => {
+    console.error('Cloud product save failed (this device still has a local copy):', err);
     if(typeof showToast === 'function') showToast("⚠️ Cloud sync failed — this product saved only on THIS device, not visible to customers yet.");
   });
 }
@@ -1738,11 +1765,47 @@ function startCatalogListener(){
     }
     const data = doc.data();
     applyingRemoteCatalog = true;
-    if(Array.isArray(data.products)) PRODUCTS = data.products;
     if(Array.isArray(data.categories)) CATEGORIES = data.categories;
     if(data.categoryImages) CATEGORY_IMAGES = data.categoryImages;
     if(data.subCategories) SUBCATEGORIES = Object.assign({}, DEFAULT_SUBCATEGORIES, data.subCategories);
-    persistProducts(); persistCategories(); persistCategoryImages(); persistSubCategories();
+    persistCategories(); persistCategoryImages(); persistSubCategories();
+    applyingRemoteCatalog = false;
+
+    renderFilters();
+    const dash = document.getElementById('adminDashboard');
+    if(dash && dash.classList.contains('open')){
+      renderCategoryList(); renderProductCategoryChips(); renderProductSubCategoryChips();
+    }
+
+    // One-time migration: if this old document still has a legacy "products" array
+    // field (from before the per-product-document change) and the new products
+    // subcollection is still empty, copy those products over automatically.
+    if(Array.isArray(data.products) && data.products.length){
+      productsCollectionRef().limit(1).get().then(snap => {
+        if(snap.empty){
+          const legacyBatch = db.batch();
+          data.products.forEach(p => legacyBatch.set(productsCollectionRef().doc(String(p.id)), p));
+          legacyBatch.commit().then(() => {
+            // clear the old field now that products live in their own documents
+            db.collection('store').doc('catalog').update({ products: firebase.firestore.FieldValue.delete() });
+          }).catch(err => console.error('Legacy product migration failed:', err));
+        }
+      });
+    }
+  }, err => console.error('Catalog live sync failed — showing local copy on this device:', err));
+}
+
+function startProductsListener(){
+  if(!firebaseReady || !db || productsUnsubscribe) return;
+  productsUnsubscribe = productsCollectionRef().onSnapshot(snap => {
+    // Note: an empty subcollection here does NOT mean "push this device's products up" —
+    // it may just mean the legacy-data migration (in startCatalogListener) hasn't finished
+    // running yet. Only real actions (adding/editing/deleting a product) write to the cloud,
+    // so we never risk overwriting real cloud data with a fresh device's placeholder defaults.
+    applyingRemoteCatalog = true;
+    PRODUCTS = snap.docs.map(d => d.data());
+    knownCloudProductIds = new Set(snap.docs.map(d => d.id));
+    persistProducts();
     applyingRemoteCatalog = false;
     // fill in sub-categories for any product the cloud copy is still missing one for
     autoAssignSubCategories();
@@ -1750,9 +1813,9 @@ function startCatalogListener(){
     renderFilters(); renderProducts();
     const dash = document.getElementById('adminDashboard');
     if(dash && dash.classList.contains('open')){
-      renderAdminProductList(); renderCategoryList(); renderProductCategoryChips(); renderProductSubCategoryChips(); renderOverviewStats();
+      renderAdminProductList(); renderOverviewStats();
     }
-  }, err => console.error('Catalog live sync failed — showing local copy on this device:', err));
+  }, err => console.error('Products live sync failed — showing local copy on this device:', err));
 }
   function startLiveOrdersListener(){
     if(!firebaseReady || !db){
@@ -1903,6 +1966,7 @@ function startCatalogListener(){
   // ---------------- INIT ----------------
   renderFilters();
   startCatalogListener();
+  startProductsListener();
   renderProducts();
   updateCartBadge();
   applySettingsToLinks();
