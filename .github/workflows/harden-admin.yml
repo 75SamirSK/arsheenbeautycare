@@ -25,40 +25,78 @@ jobs:
           path = Path('index.html')
           text = path.read_text(encoding='utf-8')
 
-          marker = '<!-- FIREBASE ADMIN LOGIN FINAL -->'
+          marker = '<!-- FIREBASE ADMIN LOGIN FINAL V2 -->'
           if marker not in text:
-              script = r'''<!-- FIREBASE ADMIN LOGIN FINAL -->
+              script = r'''<!-- FIREBASE ADMIN LOGIN FINAL V2 -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 (function () {
   const ADMIN_EMAIL = 'arsheenbeautycare@gmail.com';
 
-  window.openAdminLogin = function () {
+  function buildAdminLogin() {
     const sheet = document.getElementById('adminLoginSheet');
+    if (!sheet) return;
+    const inner = sheet.querySelector('.sheet');
+    if (!inner) return;
+    inner.innerHTML = `
+      <div class="sheet-head">
+        <h2>Owner Login</h2>
+        <button class="close-x" onclick="closeSheet('adminLoginSheet')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <p class="empty-note" style="text-align:left;">Sign in with the authorized Firebase admin account to open the Owner Dashboard.</p>
+      <div class="field">
+        <label for="adminEmail">Admin Email</label>
+        <input type="email" id="adminEmail" value="${ADMIN_EMAIL}" autocomplete="username" readonly>
+      </div>
+      <div class="field">
+        <label for="adminPass">Admin Password</label>
+        <input type="password" id="adminPass" placeholder="Enter password" autocomplete="current-password">
+      </div>
+      <button class="primary-btn" onclick="tryAdminLogin()">Sign In</button>
+      <p class="hint" style="margin-top:14px;">Use the password for the Firebase account above.</p>
+    `;
     const pass = document.getElementById('adminPass');
-    if (!sheet || !pass) return;
-    sheet.querySelectorAll('label').forEach(function (label) {
-      if (/owner passcode/i.test(label.textContent)) label.textContent = 'Admin Password';
-    });
-    sheet.querySelectorAll('p, .empty-note, .hint').forEach(function (el) {
-      if (/on-device passcode|static html|not a real security|forgot the passcode/i.test(el.textContent)) {
-        el.textContent = 'Sign in with the Firebase admin account.';
-      }
-    });
+    if (pass) {
+      pass.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') window.tryAdminLogin();
+      });
+    }
+  }
+
+  window.openAdminLogin = function () {
+    buildAdminLogin();
     openSheet('adminLoginSheet');
-    pass.type = 'password';
-    pass.autocomplete = 'current-password';
-    pass.value = '';
+    const email = document.getElementById('adminEmail');
+    const pass = document.getElementById('adminPass');
+    if (email) email.value = ADMIN_EMAIL;
+    if (pass) {
+      pass.value = '';
+      setTimeout(function () { pass.focus(); }, 50);
+    }
   };
 
   window.tryAdminLogin = async function () {
-    const pass = document.getElementById('adminPass');
-    const password = pass ? pass.value : '';
+    const emailInput = document.getElementById('adminEmail');
+    const passInput = document.getElementById('adminPass');
+    const email = (emailInput && emailInput.value || ADMIN_EMAIL).trim().toLowerCase();
+    const password = passInput ? passInput.value : '';
+
+    if (email !== ADMIN_EMAIL) {
+      showToast('Use the authorized admin email');
+      return;
+    }
     if (!password) {
       showToast('Enter admin password');
       return;
     }
+
     try {
-      if (!window.firebase || !firebase.auth) {
+      if (!window.firebase || typeof firebase.auth !== 'function') {
         showToast('Firebase Authentication is not ready. Refresh the page.');
         return;
       }
@@ -83,9 +121,22 @@ jobs:
       showToast('Admin signed in');
     } catch (err) {
       console.error('Firebase admin login failed:', err);
-      showToast('Wrong email or password');
+      const code = err && err.code ? String(err.code) : '';
+      if (code === 'auth/too-many-requests') {
+        showToast('Too many attempts. Try again later.');
+      } else if (code === 'auth/user-disabled') {
+        showToast('This admin account is disabled');
+      } else {
+        showToast('Wrong email or password');
+      }
     }
   };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', buildAdminLogin, { once: true });
+  } else {
+    buildAdminLogin();
+  }
 })();
 </script>
 '''
