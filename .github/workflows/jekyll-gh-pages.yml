@@ -85,6 +85,20 @@ jobs:
               text = text.replace('</body>', patch + '\n</body>', 1)
               p.write_text(text, encoding='utf-8')
 
+      - name: Add security hardening to storefront
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          marker = '<!-- ARSHEEN SECURITY HARDENING V1 -->'
+          patch = '<script src="./security-hardening.js"></script>\n'
+
+          if marker not in text:
+              text = text.replace('</body>', marker + '\n' + patch + '</body>', 1)
+              p.write_text(text, encoding='utf-8')
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Build with Jekyll
