@@ -1,9 +1,10 @@
-name: Force Firebase admin login
+name: Fix Firebase admin login
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -12,99 +13,95 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Patch admin login implementation
-        shell: python
+      - name: Patch admin login
+        shell: bash
         run: |
+          python3 - <<'PY'
           from pathlib import Path
-          import re
-          p = Path('index.html')
-          text = p.read_text(encoding='utf-8')
 
-          # Disable the legacy passcode implementation by replacing the exact functions.
-          text = re.sub(
-              r'function tryAdminLogin\(\)\{.*?\n\s*\}\n\s*function openAdminDashboard\(\)',
-              '''async function tryAdminLogin(){
-                const pass = document.getElementById('adminPass');
-                const password = pass ? pass.value : '';
-                if(!password){ showToast("Enter admin password"); return; }
-                try{
-                  if(!window.firebase || !firebase.auth){
-                    showToast("Firebase Authentication is not ready. Refresh the page and try again.");
-                    return;
-                  }
-                  await firebase.auth().signInWithEmailAndPassword('arsheenbeautycare@gmail.com', password);
-                  const user = firebase.auth().currentUser;
-                  if(!user || (user.email || '').toLowerCase() !== 'arsheenbeautycare@gmail.com'){
-                    await firebase.auth().signOut();
-                    showToast("Admin account not authorized");
-                    return;
-                  }
-                  closeSheet('adminLoginSheet');
-                  openAdminDashboard();
-                  showToast("Admin signed in");
-                }catch(err){
-                  console.error('Firebase admin login failed:', err);
-                  showToast("Wrong email or password");
-                }
-              }
-              function openAdminDashboard(''',
-              text, count=1, flags=re.S)
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
 
-          marker = '<!-- FIREBASE ADMIN OVERRIDE v2 -->'
+          marker = '<!-- FIREBASE ADMIN LOGIN FINAL -->'
           if marker not in text:
-              override = r'''<!-- FIREBASE ADMIN OVERRIDE v2 -->
+              script = r'''<!-- FIREBASE ADMIN LOGIN FINAL -->
 <script>
-(function(){
-  const ADMIN='arsheenbeautycare@gmail.com';
-  window.openAdminLogin=function(){
-    const sheet=document.getElementById('adminLoginSheet');
-    const pass=document.getElementById('adminPass');
-    if(!sheet||!pass) return;
-    const labels=sheet.querySelectorAll('label');
-    labels.forEach(l=>{if(/owner passcode/i.test(l.textContent)) l.textContent='Admin Password';});
-    sheet.querySelectorAll('p,.empty-note,.hint').forEach(el=>{
-      if(/on-device passcode|static html|not a real security|forgot the passcode/i.test(el.textContent))
-        el.textContent='Sign in with the Firebase admin account.';
+(function () {
+  const ADMIN_EMAIL = 'arsheenbeautycare@gmail.com';
+
+  window.openAdminLogin = function () {
+    const sheet = document.getElementById('adminLoginSheet');
+    const pass = document.getElementById('adminPass');
+    if (!sheet || !pass) return;
+    sheet.querySelectorAll('label').forEach(function (label) {
+      if (/owner passcode/i.test(label.textContent)) label.textContent = 'Admin Password';
+    });
+    sheet.querySelectorAll('p, .empty-note, .hint').forEach(function (el) {
+      if (/on-device passcode|static html|not a real security|forgot the passcode/i.test(el.textContent)) {
+        el.textContent = 'Sign in with the Firebase admin account.';
+      }
     });
     openSheet('adminLoginSheet');
-    pass.value=''; pass.type='password'; pass.autocomplete='current-password';
+    pass.type = 'password';
+    pass.autocomplete = 'current-password';
+    pass.value = '';
   };
-  window.tryAdminLogin=async function(){
-    const pass=document.getElementById('adminPass');
-    const password=pass?.value||'';
-    if(!password){showToast('Enter admin password');return;}
-    try{
-      if(!window.firebase?.auth){showToast('Firebase Authentication is not ready. Refresh the page.');return;}
-      await firebase.auth().signInWithEmailAndPassword(ADMIN,password);
-      const u=firebase.auth().currentUser;
-      if(!u || (u.email||'').toLowerCase()!==ADMIN){await firebase.auth().signOut();showToast('Admin account not authorized');return;}
+
+  window.tryAdminLogin = async function () {
+    const pass = document.getElementById('adminPass');
+    const password = pass ? pass.value : '';
+    if (!password) {
+      showToast('Enter admin password');
+      return;
+    }
+    try {
+      if (!window.firebase || !firebase.auth) {
+        showToast('Firebase Authentication is not ready. Refresh the page.');
+        return;
+      }
+      await firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, password);
+      const user = firebase.auth().currentUser;
+      if (!user || (user.email || '').toLowerCase() !== ADMIN_EMAIL) {
+        await firebase.auth().signOut();
+        showToast('Admin account not authorized');
+        return;
+      }
       closeSheet('adminLoginSheet');
-      const el=document.getElementById('adminDashboard');
-      if(el) el.classList.add('open');
-      document.body.style.overflow='hidden';
-      try{switchAdminTab('overview');}catch(e){}
-      try{fillSettingsForm();}catch(e){}
-      try{renderProductCategoryChips();}catch(e){}
-      try{renderAdminProductList();}catch(e){}
-      try{renderCategoryList();}catch(e){}
-      try{startLiveOrdersListener();}catch(e){}
-      try{renderOverviewStats();}catch(e){}
+      const dashboard = document.getElementById('adminDashboard');
+      if (dashboard) dashboard.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      try { switchAdminTab('overview'); } catch (e) {}
+      try { fillSettingsForm(); } catch (e) {}
+      try { renderProductCategoryChips(); } catch (e) {}
+      try { renderAdminProductList(); } catch (e) {}
+      try { renderCategoryList(); } catch (e) {}
+      try { startLiveOrdersListener(); } catch (e) {}
+      try { renderOverviewStats(); } catch (e) {}
       showToast('Admin signed in');
-    }catch(err){console.error(err);showToast('Wrong email or password');}
+    } catch (err) {
+      console.error('Firebase admin login failed:', err);
+      showToast('Wrong email or password');
+    }
   };
 })();
 </script>
 '''
-              text=text.replace('</body>', override+'\n</body>',1)
-          p.write_text(text,encoding='utf-8')
+              text = text.replace('</body>', script + '\n</body>', 1)
+              path.write_text(text, encoding='utf-8')
+          PY
 
-      - name: Commit patched index
+      - name: Commit patched site
+        shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html .github/workflows/harden-admin.yml
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'security: force Firebase admin login'
+          git add index.html
+          if git diff --cached --quiet; then
+            echo 'No index changes needed'
+            exit 0
+          fi
+          git commit -m 'fix: use Firebase Authentication for admin login'
           git push
