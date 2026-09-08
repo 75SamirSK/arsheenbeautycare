@@ -44,6 +44,20 @@ firebase.initializeApp(firebaseConfig);
 const auth=firebase.auth();
 const statusEl=document.getElementById('status');
 function msg(t){statusEl.textContent=t}
+function friendlyAuthError(e){
+  const code=e&&e.code?String(e.code):'';
+  const map={
+    'auth/too-many-requests':'Too many requests. Please wait and try again later.',
+    'auth/user-not-found':'This admin email is not registered in Firebase Authentication.',
+    'auth/invalid-email':'The admin email address is invalid.',
+    'auth/unauthorized-continue-uri':'Password reset is blocked because this website address is not authorized in Firebase.',
+    'auth/operation-not-allowed':'Email/password authentication is not enabled in Firebase.',
+    'auth/invalid-api-key':'Firebase configuration is invalid.',
+    'auth/network-request-failed':'Network error. Check your internet connection and try again.',
+    'auth/internal-error':'Firebase returned an internal error. Please try again.'
+  };
+  return map[code]||('Firebase error: '+(code||'unknown-error'));
+}
 async function login(){
   const password=document.getElementById('password').value;
   if(!password){msg('Enter your password.');return}
@@ -56,15 +70,21 @@ async function login(){
     location.href='../?admin=1';
   }catch(e){
     console.error(e);
-    if(e.code==='auth/too-many-requests')msg('Too many attempts. Please wait and try again.');
-    else msg('Wrong email or password.');
+    msg(friendlyAuthError(e));
   }
 }
 document.getElementById('signIn').addEventListener('click',login);
 document.getElementById('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 document.getElementById('forgot').addEventListener('click',async()=>{
   msg('Sending reset email…');
-  try{await auth.sendPasswordResetEmail(ADMIN_EMAIL);msg('Reset email sent. Check your Gmail inbox and Spam folder.')}catch(e){console.error(e);msg('Could not send reset email right now.')}});
+  try{
+    await auth.sendPasswordResetEmail(ADMIN_EMAIL);
+    msg('Reset email sent. Check Inbox, Spam, and Promotions.');
+  }catch(e){
+    console.error(e);
+    msg(friendlyAuthError(e));
+  }
+});
 </script>
 </body>
 </html>
