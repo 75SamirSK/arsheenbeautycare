@@ -21,110 +21,63 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Patch admin login in deployed site
+      - name: Add dedicated Firebase admin portal bridge
         shell: python
         run: |
           from pathlib import Path
 
           p = Path('index.html')
           text = p.read_text(encoding='utf-8')
-          marker = '<!-- FIREBASE ADMIN DEPLOY OVERRIDE V2 -->'
+          marker = '<!-- DEDICATED FIREBASE ADMIN PORTAL V1 -->'
 
           if marker not in text:
-              patch = r'''<!-- FIREBASE ADMIN DEPLOY OVERRIDE V2 -->
+              patch = r'''<!-- DEDICATED FIREBASE ADMIN PORTAL V1 -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 (function(){
   const ADMIN_EMAIL = 'arsheenbeautycare@gmail.com';
+  const ADMIN_PATH = './admin/';
 
-  function buildLogin(){
-    const sheet = document.getElementById('adminLoginSheet');
-    if(!sheet) return;
-    const inner = sheet.querySelector('.sheet');
-    if(!inner) return;
-    inner.innerHTML = `
-      <div class="sheet-head">
-        <h2>Owner Login</h2>
-        <button class="close-x" onclick="closeSheet('adminLoginSheet')">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-      <p class="empty-note" style="text-align:left;">Sign in with the authorized Firebase admin account to open the Owner Dashboard.</p>
-      <div class="field">
-        <label for="adminEmail">Admin Email</label>
-        <input type="email" id="adminEmail" value="${ADMIN_EMAIL}" autocomplete="username" readonly>
-      </div>
-      <div class="field">
-        <label for="adminPass">Admin Password</label>
-        <input type="password" id="adminPass" placeholder="Enter password" autocomplete="current-password">
-      </div>
-      <button class="primary-btn" onclick="tryAdminLogin()">Sign In</button>
-      <p class="hint" style="margin-top:14px;">Your password is checked by Firebase Authentication.</p>
-    `;
+  // The old hidden/logo-based login is retired. Any existing owner-login trigger
+  // now takes the owner directly to the dedicated admin portal.
+  window.openAdminLogin = function(){
+    window.location.href = ADMIN_PATH;
+  };
+  window.tryAdminLogin = function(){
+    window.location.href = ADMIN_PATH;
+  };
+  window.savePasscode = function(){
+    if (typeof showToast === 'function') showToast('Use the Admin portal to change or reset your password.');
+  };
 
-    const pass = document.getElementById('adminPass');
-    if(pass){
-      pass.addEventListener('keydown',function(e){
-        if(e.key==='Enter') window.tryAdminLogin();
-      });
+  function openDashboardAfterAuth(){
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('admin') !== '1') return;
+
+    if (!window.firebase || typeof firebase.auth !== 'function') {
+      window.location.href = ADMIN_PATH;
+      return;
     }
+
+    firebase.auth().onAuthStateChanged(function(user){
+      if (!user || (user.email || '').toLowerCase() !== ADMIN_EMAIL) {
+        window.location.href = ADMIN_PATH;
+        return;
+      }
+      setTimeout(function(){
+        try {
+          if (typeof openAdminDashboard === 'function') openAdminDashboard();
+        } catch (e) {
+          console.error('Could not open admin dashboard:', e);
+        }
+      }, 200);
+    });
   }
 
-  window.openAdminLogin = function(){
-    buildLogin();
-    if(typeof openSheet==='function') openSheet('adminLoginSheet');
-    const pass=document.getElementById('adminPass');
-    if(pass){
-      pass.value='';
-      setTimeout(function(){pass.focus();},50);
-    }
-  };
-
-  window.tryAdminLogin = async function(){
-    const email=(document.getElementById('adminEmail')?.value || ADMIN_EMAIL).trim().toLowerCase();
-    const password=document.getElementById('adminPass')?.value || '';
-
-    if(email!==ADMIN_EMAIL){showToast('Use the authorized admin email');return;}
-    if(!password){showToast('Enter admin password');return;}
-
-    try{
-      if(!window.firebase || typeof firebase.auth!=='function'){
-        showToast('Firebase Authentication is not ready. Refresh the page.');
-        return;
-      }
-
-      const credential=await firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL,password);
-      const user=credential.user || firebase.auth().currentUser;
-
-      if(!user || (user.email||'').toLowerCase()!==ADMIN_EMAIL){
-        await firebase.auth().signOut();
-        showToast('Admin account not authorized');
-        return;
-      }
-
-      if(typeof closeSheet==='function') closeSheet('adminLoginSheet');
-      if(typeof openAdminDashboard==='function') openAdminDashboard();
-      showToast('Admin signed in');
-    }catch(err){
-      console.error('Firebase admin login failed:',err);
-      const code=err && err.code ? String(err.code) : '';
-      if(code==='auth/too-many-requests') showToast('Too many attempts. Try again later.');
-      else if(code==='auth/user-disabled') showToast('This admin account is disabled');
-      else showToast('Wrong email or password');
-    }
-  };
-
-  window.savePasscode=function(){
-    showToast('Admin password is managed by Firebase Authentication.');
-  };
-
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',buildLogin,{once:true});
-  }else{
-    buildLogin();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', openDashboardAfterAuth, {once:true});
+  } else {
+    openDashboardAfterAuth();
   }
 })();
 </script>
