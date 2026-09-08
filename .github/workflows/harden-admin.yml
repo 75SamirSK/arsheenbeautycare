@@ -25,9 +25,9 @@ jobs:
           path = Path('index.html')
           text = path.read_text(encoding='utf-8')
 
-          marker = '<!-- FIREBASE ADMIN LOGIN FINAL V2 -->'
+          marker = '<!-- FIREBASE ADMIN LOGIN FINAL V3 -->'
           if marker not in text:
-              script = r'''<!-- FIREBASE ADMIN LOGIN FINAL V2 -->
+              script = r'''<!-- FIREBASE ADMIN LOGIN FINAL V3 -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 (function () {
@@ -58,13 +58,20 @@ jobs:
         <input type="password" id="adminPass" placeholder="Enter password" autocomplete="current-password">
       </div>
       <button class="primary-btn" onclick="tryAdminLogin()">Sign In</button>
-      <p class="hint" style="margin-top:14px;">Use the password for the Firebase account above.</p>
+      <button type="button" class="secondary-btn" id="forgotAdminPasswordBtn" style="width:100%;margin-top:10px;">Forgot password?</button>
+      <p class="hint" style="margin-top:14px;">A password reset link will be sent to ${ADMIN_EMAIL}.</p>
     `;
+
     const pass = document.getElementById('adminPass');
     if (pass) {
       pass.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') window.tryAdminLogin();
       });
+    }
+
+    const forgot = document.getElementById('forgotAdminPasswordBtn');
+    if (forgot) {
+      forgot.addEventListener('click', window.resetAdminPassword);
     }
   }
 
@@ -77,6 +84,25 @@ jobs:
     if (pass) {
       pass.value = '';
       setTimeout(function () { pass.focus(); }, 50);
+    }
+  };
+
+  window.resetAdminPassword = async function () {
+    try {
+      if (!window.firebase || typeof firebase.auth !== 'function') {
+        showToast('Firebase Authentication is not ready. Refresh the page.');
+        return;
+      }
+      await firebase.auth().sendPasswordResetEmail(ADMIN_EMAIL);
+      showToast('Password reset email sent. Check your inbox.');
+    } catch (err) {
+      console.error('Firebase password reset failed:', err);
+      const code = err && err.code ? String(err.code) : '';
+      if (code === 'auth/too-many-requests') {
+        showToast('Too many requests. Try again later.');
+      } else {
+        showToast('Could not send reset email');
+      }
     }
   };
 
@@ -154,5 +180,5 @@ jobs:
             echo 'No index changes needed'
             exit 0
           fi
-          git commit -m 'fix: use Firebase Authentication for admin login'
+          git commit -m 'fix: add Firebase admin password reset'
           git push
