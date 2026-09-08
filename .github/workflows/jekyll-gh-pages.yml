@@ -2,32 +2,80 @@
 name: Deploy Jekyll with GitHub Pages dependencies preinstalled
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  # Build job
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Patch admin login in deployed site
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          marker = '<!-- FIREBASE ADMIN DEPLOY OVERRIDE -->'
+          if marker not in text:
+              patch = r'''<!-- FIREBASE ADMIN DEPLOY OVERRIDE -->
+<script>
+(function(){
+  const ADMIN_EMAIL = 'arsheenbeautycare@gmail.com';
+  function updateLoginText(){
+    const sheet = document.getElementById('adminLoginSheet');
+    if(!sheet) return;
+    sheet.querySelectorAll('label').forEach(function(label){
+      if(/owner passcode/i.test(label.textContent)) label.textContent='Admin Password';
+    });
+    sheet.querySelectorAll('p,.empty-note,.hint').forEach(function(el){
+      if(/on-device passcode|static html|not a real security|forgot the passcode/i.test(el.textContent))
+        el.textContent='Admin account: '+ADMIN_EMAIL+'. Password verification is handled by Firebase Authentication.';
+    });
+  }
+  const originalOpenAdminLogin = window.openAdminLogin;
+  const originalOpenAdminDashboard = window.openAdminDashboard;
+  window.openAdminLogin = function(){
+    updateLoginText();
+    const pass=document.getElementById('adminPass');
+    if(pass){pass.type='password';pass.autocomplete='current-password';pass.value='';}
+    if(typeof openSheet==='function') openSheet('adminLoginSheet');
+    else if(typeof originalOpenAdminLogin==='function') originalOpenAdminLogin();
+  };
+  window.tryAdminLogin = async function(){
+    const pass=document.getElementById('adminPass');
+    const password=pass ? pass.value : '';
+    if(!password){showToast('Enter admin password');return;}
+    try{
+      if(!window.firebase || !firebase.auth){showToast('Firebase Authentication is not ready. Refresh the page.');return;}
+      const cred=await firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL,password);
+      const user=cred.user || firebase.auth().currentUser;
+      if(!user || (user.email||'').toLowerCase()!==ADMIN_EMAIL.toLowerCase()){
+        await firebase.auth().signOut();showToast('Admin account not authorized');return;
+      }
+      if(typeof closeSheet==='function') closeSheet('adminLoginSheet');
+      if(typeof originalOpenAdminDashboard==='function') originalOpenAdminDashboard();
+      showToast('Admin signed in');
+    }catch(err){console.error('Firebase admin login failed:',err);showToast('Wrong email or password');}
+  };
+  window.savePasscode=function(){showToast('Admin password is managed by Firebase Authentication.');};
+  window.addEventListener('load',updateLoginText);
+})();
+</script>
+'''
+              text=text.replace('</body>',patch+'\n</body>',1)
+              p.write_text(text,encoding='utf-8')
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Build with Jekyll
@@ -37,8 +85,6 @@ jobs:
           destination: ./_site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
-
-  # Deployment job
   deploy:
     environment:
       name: github-pages
