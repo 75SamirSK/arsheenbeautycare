@@ -21,112 +21,86 @@ jobs:
           from pathlib import Path
           import re
 
-          p = Path("index.html")
-          text = p.read_text(encoding="utf-8")
-
-          # Remove the default plaintext passcode from the shipped JavaScript.
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
           text = text.replace('    passcode: "swing",\n', '')
-
-          marker = "<!-- SECURITY HARDENING: Firebase Authentication + admin gate -->"
-          if marker not in text:
-              hardening = r'''<!-- SECURITY HARDENING: Firebase Authentication + admin gate -->
+          marker = '<!-- SECURITY HARDENING: Firebase Authentication + admin gate -->'
+          if marker in text:
+              block = '''<!-- SECURITY HARDENING: Firebase Authentication + admin gate -->
 <script>
 (function(){
-  const ADMIN_EMAIL = 'REPLACE_WITH_YOUR_ADMIN_EMAIL';
-  const authUnavailableMessage = 'Admin login is temporarily unavailable.';
+  const ADMIN_EMAIL = 'arsheenbeautycare@gmail.com';
 
   function ensureLoginFields(){
     const sheet = document.getElementById('adminLoginSheet');
     if(!sheet) return;
-    const field = document.getElementById('adminPass');
-    if(field){
-      field.type = 'password';
-      field.autocomplete = 'current-password';
-      field.placeholder = 'Password';
+    const pass = document.getElementById('adminPass');
+    if(pass){
+      pass.type = 'password';
+      pass.autocomplete = 'current-password';
+      pass.placeholder = 'Password';
     }
     const label = sheet.querySelector('label[for="adminPass"]');
     if(label) label.textContent = 'Admin Password';
     let email = document.getElementById('adminEmail');
-    if(!email && field){
-      const wrap = field.closest('.field');
+    if(!email && pass){
+      const wrap = pass.closest('.field');
+      const ef = document.createElement('div');
+      ef.className = 'field';
+      const el = document.createElement('label');
+      el.setAttribute('for','adminEmail');
+      el.textContent = 'Admin Email';
       email = document.createElement('input');
       email.id = 'adminEmail';
       email.type = 'email';
       email.autocomplete = 'username';
-      email.placeholder = 'Admin email';
-      email.className = field.className;
-      const emailField = document.createElement('div');
-      emailField.className = 'field';
-      const emailLabel = document.createElement('label');
-      emailLabel.setAttribute('for','adminEmail');
-      emailLabel.textContent = 'Admin Email';
-      emailField.appendChild(emailLabel);
-      emailField.appendChild(email);
-      wrap.parentNode.insertBefore(emailField, wrap);
+      email.placeholder = ADMIN_EMAIL;
+      ef.appendChild(el); ef.appendChild(email);
+      wrap.parentNode.insertBefore(ef, wrap);
     }
     const note = sheet.querySelector('.empty-note');
-    if(note) note.textContent = 'Secure admin sign-in. Your password is verified by Firebase Authentication and is never stored in this page.';
+    if(note) note.textContent = 'Secure admin sign-in. Password verification is handled by Firebase Authentication.';
     const hint = sheet.querySelector('.hint');
-    if(hint) hint.textContent = 'Use the admin email and password created in Firebase Authentication.';
+    if(hint) hint.textContent = 'Use the shop owner Firebase email and password.';
   }
 
-  async function adminIsAuthenticated(){
+  function isAdmin(){
     if(!window.firebase || !firebase.auth) return false;
     const user = firebase.auth().currentUser;
-    return !!user && !!user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    return !!user && (user.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
   }
 
   window.showAdminLogin = function(){
     ensureLoginFields();
-    if(window.firebase && firebase.auth){
-      const user = firebase.auth().currentUser;
-      if(user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()){
-        window.openAdminDashboard();
-        return;
-      }
-    }
+    if(isAdmin()) return window.openAdminDashboard();
     if(typeof openSheet === 'function') openSheet('adminLoginSheet');
     const e = document.getElementById('adminEmail');
     const p = document.getElementById('adminPass');
-    if(e) e.value = e.value || '';
+    if(e) e.value = ADMIN_EMAIL;
     if(p) p.value = '';
   };
 
   window.tryAdminLogin = async function(){
     ensureLoginFields();
-    if(!window.firebase || !firebase.auth){ showToast(authUnavailableMessage); return; }
-    const email = (document.getElementById('adminEmail')?.value || '').trim();
     const password = document.getElementById('adminPass')?.value || '';
-    if(!email || !password){ showToast('Enter admin email and password'); return; }
-    if(email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()){
-      showToast('Invalid admin credentials');
-      return;
-    }
+    if(!password){ showToast('Enter admin password'); return; }
     try{
-      await firebase.auth().signInWithEmailAndPassword(email, password);
+      await firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, password);
+      if(!isAdmin()) throw new Error('Not admin');
       closeSheet('adminLoginSheet');
-      window.openAdminDashboard();
+      await window.openAdminDashboard();
       showToast('Admin signed in');
     }catch(err){
       console.error('Firebase admin login failed:', err);
-      showToast('Invalid admin credentials');
+      showToast('Invalid admin password');
     }
   };
 
   window.openAdminDashboard = async function(){
-    if(!(await adminIsAuthenticated())){
-      showToast('Please sign in as the admin');
-      if(typeof showAdminLogin === 'function') showAdminLogin();
-      return;
-    }
+    if(!isAdmin()){ showToast('Please sign in as admin'); return; }
     const el = document.getElementById('adminDashboard');
     if(el) el.classList.add('open');
     document.body.style.overflow = 'hidden';
-    if(typeof renderAdminProductList === 'function') renderAdminProductList();
-    if(typeof renderOverviewStats === 'function') renderOverviewStats();
-    if(typeof fillSettingsForm === 'function') fillSettingsForm();
-    if(typeof renderCategoryList === 'function') renderCategoryList();
-    if(typeof startOrdersListener === 'function') startOrdersListener();
   };
 
   window.closeAdminDashboard = function(){
@@ -137,26 +111,25 @@ jobs:
   };
 
   window.savePasscode = function(){
-    showToast('Password changes must be made in Firebase Authentication.');
+    showToast('Admin password is managed in Firebase Authentication.');
   };
 
   window.addEventListener('load', function(){
     ensureLoginFields();
     if(window.firebase && firebase.auth){
       firebase.auth().onAuthStateChanged(function(user){
-        if(user && user.email && user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()){
+        if(user && (user.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase()){
           firebase.auth().signOut().catch(console.error);
         }
       });
     }
   });
 })();
-</script>
-'''
-              text = text.replace('</body>', hardening + '\n</body>', 1)
-              p.write_text(text, encoding='utf-8')
+</script>'''
+              text = re.sub(r'<!-- SECURITY HARDENING: Firebase Authentication \+ admin gate -->.*?</script>', block, text, count=1, flags=re.S)
+          p.write_text(text, encoding='utf-8')
 
-      - name: Add Firestore rules template
+      - name: Write Firestore rules
         run: |
           cat > firestore.rules <<'EOF'
           rules_version = '2';
@@ -164,11 +137,9 @@ jobs:
             match /databases/{database}/documents {
               function isAdmin() {
                 return request.auth != null
-                  && request.auth.token.email == 'REPLACE_WITH_YOUR_ADMIN_EMAIL';
+                  && request.auth.token.email == 'arsheenbeautycare@gmail.com';
               }
 
-              // Public storefront data may be read by customers, but only the
-              // authenticated admin may change it.
               match /store/{docId} {
                 allow read: if true;
                 allow write: if isAdmin();
@@ -179,45 +150,38 @@ jobs:
                 allow write: if isAdmin();
               }
 
-              // Customers may submit orders. Only the admin may change an
-              // existing order. Customer tracking should ideally be moved to
-              // a callable backend/API for strict per-order authorization.
               match /orders/{orderId} {
                 allow create: if true;
-                allow read: if isAdmin();
-                allow update, delete: if isAdmin();
+                allow read, update, delete: if isAdmin();
               }
             }
           }
           EOF
 
-      - name: Add security setup notes
+      - name: Write security notes
         run: |
           cat > SECURITY_SETUP.md <<'EOF'
           # Admin security setup
 
-          The old dashboard used a client-side passcode (`swing`) and `localStorage`,
-          which is not real authentication. The app now expects Firebase Authentication
-          (Email/Password) and a matching admin email in the Firestore rules.
+          Admin access uses Firebase Authentication for `arsheenbeautycare@gmail.com`.
+          The old client-only passcode is removed from the shipped app.
 
-          1. In Firebase Console for project `arsheen-1dc9c`, enable **Authentication → Sign-in method → Email/Password**.
-          2. Create the shop-owner user with the admin email you will use.
-          3. In `index.html`, replace `REPLACE_WITH_YOUR_ADMIN_EMAIL` in the security-hardening block with that exact email.
-          4. In `firestore.rules`, replace the same placeholder with the exact admin email.
-          5. Deploy the rules from a trusted machine with Firebase CLI: `firebase deploy --only firestore:rules`.
-          6. Delete any old copies of the passcode from browser storage (`arsheen_settings`) on devices that previously used the dashboard.
-
-          The Firebase web `apiKey` in the page is not itself an admin secret; the important protection is Firebase Authentication plus Firestore rules.
+          In Firebase Console for project `arsheen-1dc9c`:
+          1. Enable Authentication -> Sign-in method -> Email/Password.
+          2. Create `arsheenbeautycare@gmail.com` as the owner account.
+          3. Set a strong password there. Do not store the password in GitHub.
+          4. Deploy `firestore.rules`: `firebase deploy --only firestore:rules`.
+          5. Clear site data on devices that previously used the old dashboard.
           EOF
 
       - name: Commit hardened version
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html firestore.rules SECURITY_SETUP.md
           if git diff --cached --quiet; then
-            echo "No changes to commit"
+            echo 'No changes to commit'
           else
-            git commit -m "security: replace client passcode with Firebase auth"
+            git commit -m 'security: harden admin authentication'
             git push
           fi
